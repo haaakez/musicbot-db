@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+music_bot.db
+downloads/
+token.txt
+.env
+.vscode/
+.idea/
+.DS_Store

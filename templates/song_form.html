@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ action }} Song</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #1e2030; color: #cad3f5; }
+      .page { max-width: 680px; margin: 2rem auto; padding: 1.5rem; background: #24273a; border: 1px solid #494d64; }
+      h1 { margin-top: 0; margin-bottom: 1.25rem; font-size: 1.5rem; }
+      label { display: block; margin: 0.5rem 0 0.25rem; color: #cad3f5; }
+      input[type=text], input[type=url], input[type=number] { width: 100%; padding: 0.7rem; border: 1px solid #494d64; background: #363a4f; color: #cad3f5; }
+      button { margin-top: 1rem; padding: 0.75rem 1rem; border: none; background: #8aadf4; color: #1e2030; cursor: pointer; }
+      a { color: #8aadf4; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <h1>{{ action }} Song</h1>
+    <form method="post">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" required value="{{ song.title if song else '' }}">
+
+      <label for="url">URL (optional)</label>
+      <input type="url" id="url" name="url" value="{{ song.url if song else '' }}">
+
+      <label for="play_count">Play count</label>
+      <input type="number" id="play_count" name="play_count" min="0" value="{{ song.play_count if song else 0 }}">
+
+      <button type="submit">{{ action }}</button>
+    </form>
+    <p><a href="{{ url_for('index') }}">Back to list</a></p>
+  </body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Music Bot Database</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0.75rem; background: #1e2030; color: #cad3f5; }
+      .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+      .toolbar form { margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+      .toolbar input[type=text], .toolbar select { padding: 0.35rem 0.5rem; border: 1px solid #494d64; border-radius: 0; background: #24273a; color: #cad3f5; font-size: 0.85rem; }
+      .toolbar input[type=text] { min-width: 10rem; }
+      .toolbar button, .toolbar a.button { padding: 0.35rem 0.65rem; border-radius: 0; text-decoration: none; border: none; background: #8aadf4; color: #1e2030; cursor: pointer; font-size: 0.88rem; }
+      .toolbar a.button.secondary { background: #5b6078; color: #cad3f5; }
+      .toolbar button:hover, .toolbar a.button:hover { opacity: 0.92; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; min-width: 36rem; }
+      th, td { padding: 0.25rem 0.35rem; border: 1px solid #494d64; vertical-align: middle; }
+      th { background: #24273a; color: #cad3f5; font-size: 0.74rem; text-align: center; white-space: normal; word-break: break-word; }
+      td { background: #363a4f; color: #cad3f5; font-size: 0.75rem; }
+      tr:nth-child(even) td { background: #24273a; }
+      .rating-form { margin: 0; }
+      .rating-form select { width: 100%; min-width: 3.8rem; max-width: 4.2rem; padding: 0.22rem 0.3rem; border: 1px solid #494d64; border-radius: 0; background: #363a4f; color: #cad3f5; font-size: 0.75rem; }
+      .rating-form select:focus { outline: 1px solid #8aadf4; }
+      .action-buttons { display: flex; gap: 0.2rem; flex-wrap: wrap; }
+      .action-buttons a.button, .action-buttons button { font-size: 0.72rem; padding: 0.3rem 0.45rem; border-radius: 0; }
+      .action-buttons button { background: #ed8796; color: #1e2030; }
+      .user-name { max-width: 5.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      body, input, select, button { font-family: Arial, sans-serif; }
+      h1 { font-size: 1.4rem; margin-bottom: 0.75rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Music Bot Database</h1>
+    <div class="toolbar">
+      <form method="get" action="{{ url_for('index') }}">
+        <input type="text" name="q" placeholder="Search songs..." value="{{ search_query }}">
+        <select name="avg_filter">
+          <option value="all" {% if avg_filter == 'all' %}selected{% endif %}>avg: all</option>
+          <option value=">=1" {% if avg_filter == '>=1' %}selected{% endif %}>>= 1</option>
+          <option value=">=2" {% if avg_filter == '>=2' %}selected{% endif %}>>= 2</option>
+          <option value=">=3" {% if avg_filter == '>=3' %}selected{% endif %}>>= 3</option>
+          <option value="=1" {% if avg_filter == '=1' %}selected{% endif %}>= 1</option>
+          <option value="=2" {% if avg_filter == '=2' %}selected{% endif %}>= 2</option>
+          <option value="=3" {% if avg_filter == '=3' %}selected{% endif %}>= 3</option>
+        </select>
+        <select name="banned_filter">
+          <option value="all" {% if banned_filter == 'all' %}selected{% endif %}>banned: all</option>
+          <option value="banned" {% if banned_filter == 'banned' %}selected{% endif %}>banned only</option>
+          <option value="not_banned" {% if banned_filter == 'not_banned' %}selected{% endif %}>exclude banned</option>
+        </select>
+        <select name="not_rated_by">
+          <option value="all" {% if not_rated_by == 'all' %}selected{% endif %}>all raters</option>
+          {% for rater in known_raters %}
+            <option value="{{ rater.value }}" {% if not_rated_by == rater.value %}selected{% endif %}>not rated by {{ rater.display }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">Search</button>
+      </form>
+      <a class="button" href="{{ url_for('add_song') }}">Add new song</a>
+      <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+    </div>
+    {% if not known_raters %}
+      <p>No raters yet. Use the Discord rating command first to populate the grid.</p>
+    {% endif %}
+    <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>URL</th>
+          <th>Plays</th>
+          <th>Last played</th>
+          <th>avg</th>
+          {% for rater in known_raters %}
+            <th class="user-name">{{ rater.display }}</th>
+          {% endfor %}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for song in songs %}
+        <tr>
+          <td>{{ song.song_id }}</td>
+          <td>{{ song.title }}</td>
+          <td>{% if song.url %}<a href="{{ song.url }}" target="_blank">Link</a>{% else %}<em>None</em>{% endif %}</td>
+          <td>{{ song.play_count or 0 }}</td>
+          <td>{{ song.last_played or '-' }}</td>
+          {% set summary = rating_summary.get(song.song_id) %}
+          <td>{{ summary.avg_score|round(2) if summary and summary.avg_score is not none else '-' }}</td>
+          {% for rater in known_raters %}
+          <td>
+            {% set current_score = ratings_matrix.get(song.song_id, {}).get(rater.user_id) %}
+            <form class="rating-form" action="{{ url_for('rate_song', song_id=song.song_id) }}" method="post">
+              <input type="hidden" name="q" value="{{ search_query }}">
+              <input type="hidden" name="rater" value="{{ rater.value }}">
+              <select name="score" onchange="this.form.submit()">
+                <option value="3" {% if current_score == 3 %}selected{% endif %}>3</option>
+                <option value="2" {% if current_score == 2 %}selected{% endif %}>2</option>
+                <option value="1" {% if current_score == 1 %}selected{% endif %}>1</option>
+                <option value="0" {% if current_score == 0 %}selected{% endif %}>0</option>
+                <option value="-1" {% if current_score == -1 %}selected{% endif %}>-1</option>
+              </select>
+            </form>
+          </td>
+          {% endfor %}
+          <td class="action-buttons">
+            <a class="button" href="{{ url_for('edit_song', song_id=song.song_id) }}">Edit</a>
+            <form action="{{ url_for('delete_song', song_id=song.song_id) }}" method="post">
+              <button type="submit" class="button" style="background:#dc3545;">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </body>
+</html>
