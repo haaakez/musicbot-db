@@ -12,3 +12,5 @@ token.txt
 .DS_Store
 test_search.py
 main-ytdlp.py
+plugins/
+Lavalink.jar
