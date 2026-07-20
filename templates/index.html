@@ -24,7 +24,9 @@
       .action-buttons { display: flex; gap: 0.2rem; flex-wrap: wrap; }
       .action-buttons a.button, .action-buttons button { font-size: 0.72rem; padding: 0.3rem 0.45rem; border-radius: 0; }
       .action-buttons button { background: #ed8796; color: #1e2030; }
-      .user-name { max-width: 5.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .user-name { min-width: 6.5rem; max-width: 7.5rem; overflow: visible; text-overflow: clip; white-space: normal; }
+      .threshold-form { margin: 4px 0 0 0; display: flex; align-items: center; justify-content: center; gap: 2px; }
+      .threshold-form select { font-size: 10px; padding: 1px 2px; background: #363a4f; color: #cad3f5; border: 1px solid #494d64; border-radius: 0; }
       body, input, select, button { font-family: Arial, sans-serif; }
       h1 { font-size: 1.4rem; margin-bottom: 0.75rem; }
     </style>
@@ -73,7 +75,22 @@
           <th>Last played</th>
           <th>avg</th>
           {% for rater in known_raters %}
-            <th class="user-name">{{ rater.display }}</th>
+            <th class="user-name">
+              <div>{{ rater.display }}</div>
+              <form class="threshold-form" action="{{ url_for('update_threshold', user_id=rater.user_id) }}" method="post">
+                <span style="font-size: 10px; color: #a5adcb;">min:</span>
+                <select name="min_rating" onchange="this.form.submit()">
+                  {% set current_val = user_thresholds.get(rater.user_id, 0.0) %}
+                  <option value="0.0" {% if current_val == 0.0 %}selected{% endif %}>0.0</option>
+                  <option value="0.5" {% if current_val == 0.5 %}selected{% endif %}>0.5</option>
+                  <option value="1.0" {% if current_val == 1.0 %}selected{% endif %}>1.0</option>
+                  <option value="1.5" {% if current_val == 1.5 %}selected{% endif %}>1.5</option>
+                  <option value="2.0" {% if current_val == 2.0 %}selected{% endif %}>2.0</option>
+                  <option value="2.5" {% if current_val == 2.5 %}selected{% endif %}>2.5</option>
+                  <option value="3.0" {% if current_val == 3.0 %}selected{% endif %}>3.0</option>
+                </select>
+              </form>
+            </th>
           {% endfor %}
           <th>Actions</th>
         </tr>

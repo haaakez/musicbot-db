@@ -3,7 +3,7 @@
 pkgs.mkShell {
   buildInputs = with pkgs; [
     python311
-    ffmpeg
+    jdk17
     libsodium
     pkg-config
     gcc
@@ -16,23 +16,23 @@ pkgs.mkShell {
     export LDFLAGS="-L${pkgs.libsodium}/lib -L${pkgs.libffi}/lib"
     export CPPFLAGS="-I${pkgs.libsodium}/include -I${pkgs.libffi}/include"
     export PKG_CONFIG_PATH="${pkgs.libsodium}/lib/pkgconfig:$PKG_CONFIG_PATH"
-    export PATH="${pkgs.ffmpeg}/bin:$PATH"
-    export FFMPEG_PATH="${pkgs.ffmpeg}/bin/ffmpeg"
+    
+    # Explicitly force Java into the environment PATH
+    export PATH="${pkgs.jdk17}/bin:$PATH"
     
     if [ ! -d venv ]; then
       python -m venv venv
-      # ensure venv sees nix-provided ffmpeg by creating a symlink inside venv/bin
-      ln -sf "${pkgs.ffmpeg}/bin/ffmpeg" venv/bin/ffmpeg
-      chmod +x venv/bin/ffmpeg || true
     fi
 
     source venv/bin/activate
 
-    python -c 'import flask' >/dev/null 2>&1 || {
+    python -c 'import wavelink' >/dev/null 2>&1 || {
       pip install --upgrade pip setuptools wheel
-      pip install "discord.py[voice]" yt-dlp Flask
+      pip install "discord.py[voice]" Flask wavelink
     }
     
-    echo "🎵 Music Bot environment ready"
+    echo "🎵 Music Bot & Lavalink environment ready"
+    echo "▶️ Run 'java -jar Lavalink.jar' in one terminal"
+    echo "▶️ Run 'python your_bot_file.py' in another!"
   '';
 }

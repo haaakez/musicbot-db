@@ -10,3 +10,5 @@ token.txt
 .vscode/
 .idea/
 .DS_Store
+test_search.py
+main-ytdlp.py

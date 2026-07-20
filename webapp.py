@@ -3,6 +3,8 @@ import sqlite3
 import os
 import json
 import urllib.request
+import difflib
+import re
 
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
@@ -54,6 +56,12 @@ def ensure_db_schema():
     if 'user_id' not in rating_columns:
         c.execute('ALTER TABLE ratings ADD COLUMN user_id INTEGER')
     c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_ratings_song_user ON ratings(song_id, user_id)')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS user_thresholds (
+                    user_id INTEGER PRIMARY KEY,
+                    min_rating REAL DEFAULT 0.0
+                )''')
+    
     conn.commit()
     conn.close()
 
@@ -143,6 +151,11 @@ def get_known_raters():
     return raters
 
 
+def get_user_thresholds():
+    rows = query_db('SELECT user_id, min_rating FROM user_thresholds')
+    return {row['user_id']: row['min_rating'] for row in rows}
+
+
 def get_username_for_user_id(user_id):
     row = query_db('SELECT username FROM ratings WHERE user_id = ? AND username IS NOT NULL LIMIT 1', (user_id,), one=True)
     db_username = row['username'] if row else None
@@ -164,7 +177,7 @@ def get_ratings_matrix(song_ids, raters):
 
 
 def parse_rater_value(value):
-    if not value:
+    if not value or value == '':
         return None, None
     if value.startswith('id:'):
         try:
@@ -238,11 +251,33 @@ def index():
     not_rated_by = request.args.get('not_rated_by', 'all')
 
     if search_query:
-        search_pattern = f'%{search_query.lower()}%'
-        songs = query_db(
-            'SELECT song_id, title, url, play_count, last_played FROM songs WHERE LOWER(title) LIKE ? OR LOWER(url) LIKE ? ORDER BY title COLLATE NOCASE',
-            (search_pattern, search_pattern)
-        )
+        norm_q = re.sub(r'[^a-z0-9 ]+', '', search_query.lower()).strip()
+        all_rows = query_db('SELECT song_id, title, url, play_count, last_played FROM songs')
+        scored = []
+        for row in all_rows:
+            title = row['title'] or ''
+            title_norm = re.sub(r'[^a-z0-9 ]+', '', title.lower()).strip()
+            if not title_norm:
+                continue
+
+            ratio = difflib.SequenceMatcher(None, norm_q, title_norm).ratio()
+            score = ratio
+
+            if title_norm == norm_q:
+                score = max(score, 0.99)
+            elif title_norm.startswith(norm_q):
+                score = max(score, 0.85)
+            elif norm_q in title_norm:
+                score = max(score, 0.7)
+
+            play_count = row['play_count'] or 0
+            score += min(play_count, 100) * 0.001
+
+            if score >= 0.25:
+                scored.append((score, row))
+
+        scored.sort(key=lambda x: (-x[0], - (x[1]['play_count'] or 0), x[1]['title'] or ''))
+        songs = [r for _, r in scored]
     else:
         songs = query_db('SELECT song_id, title, url, play_count, last_played FROM songs ORDER BY title COLLATE NOCASE')
 
@@ -250,6 +285,7 @@ def index():
     rating_summary = get_rating_summary(song_ids)
     song_ratings = get_ratings_for_song_ids(song_ids)
     known_raters = get_known_raters()
+    user_thresholds = get_user_thresholds()
     ratings_matrix = get_ratings_matrix(song_ids, known_raters)
 
     avg_filter_parsed = parse_average_filter(avg_filter)
@@ -300,8 +336,20 @@ def index():
         rating_summary=rating_summary,
         song_ratings=song_ratings,
         known_raters=known_raters,
+        user_thresholds=user_thresholds,
         ratings_matrix=ratings_matrix
     )
+
+
+@app.route('/update_threshold/<int:user_id>', methods=['POST'])
+@login_required
+def update_threshold(user_id):
+    try:
+        min_rating = float(request.form.get('min_rating', '0.0'))
+    except ValueError:
+        min_rating = 0.0
+    execute_db('INSERT OR REPLACE INTO user_thresholds (user_id, min_rating) VALUES (?, ?)', (user_id, min_rating))
+    return redirect(url_for('index'))
 
 
 @app.route('/rate/<int:song_id>', methods=['POST'])

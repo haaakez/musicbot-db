@@ -1,21 +1,26 @@
-# Discord Music Bot with Web Admin
+# Discord Music Bot & Web Dashboard
 
-A simple Discord music bot using `discord.py`, `yt_dlp`, and `ffmpeg`, with a Flask web admin interface for managing the song database.
+A Wavelink-powered Discord music bot featuring an endless smart radio, personalized rating thresholds, and a Flask web interface for database management.
+
+## Features
+- **Lavalink Engine:** Low-latency playback with LavaDSPX volume normalization.
+- **Smart Radio:** Endless queue that mathematically prioritizes unplayed and highly-rated tracks.
+- **Personal Limits:** Users set minimum ratings; the bot strictly enforces the highest limit in the voice channel.
+- **Web Dashboard:** A Flask interface (`localhost:5000`) to manage songs, ratings, and thresholds.
 
 ## Requirements
+- Python 3.11+
+- Java 17+ (for Lavalink)
+- `Lavalink.jar` (v4+) configured with YouTube and LavaDSPX plugins.
+- Discord Bot Token (with **Server Members Intent** enabled).
 
-- Python 3.11+ or compatible environment
-- `ffmpeg` installed
-- Discord bot token
+## Quick Start
 
-## Setup
-
-1. Create a `token.txt` file in the project root containing your Discord bot token, or set `DISCORD_TOKEN` in the environment.
-2. Install dependencies via your own environment like the nix shell.
-3. Run the bot with:
-
-    python main.py
-
-4. Run the web admin app with:
-
-    python webapp.py
+1. **Tokens:** Create a `token.txt` file with your Discord bot token. 
+   *(Note: Set `DISCORD_BOT_TOKEN` in your environment so the web app can fetch usernames).*
+2. **Start Lavalink:**
+   `java -jar Lavalink.jar`
+3. **Start the Bot:**
+   `python main.py`
+4. **Start the Dashboard:**
+   `python webapp.py`

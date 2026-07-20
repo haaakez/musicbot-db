@@ -1,0 +1,19 @@
+server: 
+  port: 2333
+  address: 0.0.0.0
+lavalink:
+  plugins:
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.1"
+      repository: "https://maven.lavalink.dev/releases"
+    - dependency: "com.github.Devoxin:LavaDSPX-Plugin:0.0.5"
+      repository: "https://jitpack.io"
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
