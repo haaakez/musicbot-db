@@ -31,8 +31,8 @@ pkgs.mkShell {
       pip install "discord.py[voice]" Flask wavelink
     }
     
-    echo "🎵 Music Bot & Lavalink environment ready"
-    echo "▶️ Run 'java -jar Lavalink.jar' in one terminal"
-    echo "▶️ Run 'python your_bot_file.py' in another!"
+    echo " Music Bot & Lavalink environment ready"
+    echo " Run 'java -jar Lavalink.jar' in one terminal"
+    echo " Run 'python your_bot_file.py' in another"
   '';
 }
