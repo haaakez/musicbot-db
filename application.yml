@@ -25,6 +25,10 @@ plugins:
   youtube:
     enabled: true
     allowSearch: true
+    remoteCipher:
+      url: "${YOUTUBE_CIPHER_URL:https://cipher.kikkia.dev/}"
+      password: "${YOUTUBE_CIPHER_PASSWORD:}"
+      userAgent: "musicbot"
     clients:
       - MUSIC
       - MWEB
