@@ -17,6 +17,7 @@ from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
 from preferences import setup_settings, read_settings, write_settings, register_guild
 from presentation import TrackPresentation
+from youtube_audio import YoutubeAudio
 
 DB_NAME = "music_bot.db"
 
@@ -93,6 +94,7 @@ if len(set([TOKEN, *sync_tokens])) != 1 + len(sync_tokens):
 sync_playback = SyncPlayback(bot, sync_tokens)
 presentation = TrackPresentation(bot, sync_playback, DB_NAME)
 sync_playback.before_leave = presentation.clear_followers
+youtube_audio = YoutubeAudio(os.path.join(os.path.dirname(__file__), ".audio-cache"))
 
 now_playing_msgs = {}
 radio_active = {}
@@ -104,6 +106,7 @@ selection_locks = {}
 bound_channels = {}
 recent_playback_errors = {}
 recent_end_reasons = {}
+playback_generations = {}
 
 EMBED_BG = 0x2b2d31
 EMBED_RED = 0xED4245
@@ -191,6 +194,18 @@ def resolve_search_query(query):
     if db_fuzzy: return db_fuzzy
 
     return query
+
+async def play_track(player, track):
+    generation = playback_generations.get(player.guild.id, 0)
+    players = list(bot.voice_clients)
+    players.extend(p for group in sync_playback.groups.values() for _, p in group)
+    protected = [getattr(p.current.extras, 'cache_path', None) for p in players if p.current]
+    prepared = await youtube_audio.prepare(track, player.node, protected)
+    if playback_generations.get(player.guild.id, 0) != generation or not player.connected:
+        return False
+    await player.play(prepared)
+    return True
+
 
 async def search_tracks(query):
     source = None if re.match(r"^(ytsearch|ytmsearch|scsearch|spsearch|amsearch|dzsearch):", query) else wavelink.TrackSource.YouTubeMusic
@@ -341,7 +356,8 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
             veto.discard(song_id)
             await vc.queue.put_wait(track)
             if not vc.playing:
-                await vc.play(vc.queue.get())
+                if not await play_track(vc, vc.queue.get()):
+                    return
             last_radio_song[guild_id] = song_id
             return
         except Exception as exc:
@@ -477,7 +493,7 @@ async def advance_queue(payload):
         player.queue.history.clear()
     if (player.queue.mode == wavelink.QueueMode.loop and player.queue.loaded is not None) or not player.queue.is_empty:
         next_track = player.queue.get()
-        await player.play(next_track)
+        await play_track(player, next_track)
     else:
         guild_id = player.guild.id
         channel = bound_channels.get(guild_id)
@@ -576,7 +592,7 @@ async def play(ctx, *, search: str):
     async with selection_locks.setdefault(ctx.guild.id, asyncio.Lock()):
         await vc.queue.put_wait(items)
         if not vc.playing:
-            await vc.play(vc.queue.get())
+            await play_track(vc, vc.queue.get())
     embed = discord.Embed(description=f"Queued {len(items)} track(s), starting with **{track.title}**", color=EMBED_BG)
     await ctx.send(embed=embed, delete_after=10)
 
@@ -589,6 +605,7 @@ async def skip(ctx):
 
 @bot.command(aliases=['st'])
 async def stop(ctx):
+    playback_generations[ctx.guild.id] = playback_generations.get(ctx.guild.id, 0) + 1
     vc: wavelink.Player = ctx.voice_client
     radio_active[ctx.guild.id] = False
 
@@ -744,6 +761,7 @@ async def resume(ctx):
 
 @bot.command(aliases=['l'])
 async def leave(ctx):
+    playback_generations[ctx.guild.id] = playback_generations.get(ctx.guild.id, 0) + 1
     vc: wavelink.Player = ctx.voice_client
     radio_active[ctx.guild.id] = False
     if ctx.guild.id in played_history: played_history[ctx.guild.id].clear()
@@ -984,6 +1002,7 @@ async def on_command_error(ctx, error):
 
 async def main():
     async with bot:
+        await youtube_audio.initialize()
         await sync_playback.start()
         display_task = asyncio.create_task(presentation.maintain())
         try:
