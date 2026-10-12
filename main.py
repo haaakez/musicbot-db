@@ -213,17 +213,17 @@ class RatingView(View):
         run_query("INSERT OR REPLACE INTO ratings (user_id, song_id, username, score) VALUES (?, ?, ?, ?)",
                   (user_id, self.song_id, interaction.user.name, score))
 
-        label = "Banned" if score == -1 else f"Rated {score}"
+        label = f"rated {score}"
 
         if score == -1 and interaction.guild.voice_client and interaction.user.voice and sync_playback.contains(interaction.guild.id, interaction.user.voice.channel.id):
-            await interaction.response.send_message(embed=discord.Embed(description=f"You banned **{self.title}**. Skipping...", color=EMBED_RED), ephemeral=False)
+            await interaction.response.send_message(embed=discord.Embed(description=f"you rated **{self.title}** -1. skipping…", color=EMBED_RED), ephemeral=False)
             vc: wavelink.Player = interaction.guild.voice_client
             if vc:
                 await vc.skip(force=True)
         else:
-            await interaction.response.send_message(embed=discord.Embed(description=f"You {label} for **{self.title}**", color=EMBED_BG), ephemeral=True)
+            await interaction.response.send_message(embed=discord.Embed(description=f"you {label} for **{self.title}**", color=EMBED_BG), ephemeral=True)
 
-    @discord.ui.button(label="Ban", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="-1", style=discord.ButtonStyle.danger)
     async def ban_button(self, interaction: discord.Interaction, button: Button):
         await self.save_rating(interaction, -1)
     @discord.ui.button(label="0", style=discord.ButtonStyle.secondary)
@@ -719,8 +719,8 @@ async def rate(ctx, score: int, *, query: str):
     run_query("INSERT OR REPLACE INTO ratings (user_id, song_id, username, score) VALUES (?, ?, ?, ?)", (user_id, song_id, username, score))
     run_query("UPDATE ratings SET username = ? WHERE user_id = ? AND username IS NULL", (username, user_id))
 
-    label = "Banned" if score == -1 else f"Rated {score}/3"
-    await ctx.send(embed=discord.Embed(description=f"You {label} for **{song_title}**", color=EMBED_BG))
+    label = f"rated {score}"
+    await ctx.send(embed=discord.Embed(description=f"you {label} for **{song_title}**", color=EMBED_BG))
 
 @bot.command()
 async def library(ctx, page: int = 1):
@@ -765,7 +765,7 @@ async def library(ctx, page: int = 1):
         for uid in all_rater_ids:
             score = song_ratings.get(uid, None)
             if score is None: col = " . "
-            elif score == -1: col = " X "
+            elif score == -1: col = "-1 "
             else: col = f" {score} "
             user_cols.append(col)
 
@@ -778,7 +778,7 @@ async def library(ctx, page: int = 1):
         description=f"```text\n{header}\n{divider}\n{rows_text}```",
         color=EMBED_BG
     )
-    embed.set_footer(text="Key: X = Banned, . = Not Rated")
+    embed.set_footer(text="-1 = blocked while you listen, . = unrated")
     await ctx.send(embed=embed)
 
 @bot.command()
