@@ -10,7 +10,7 @@ import secrets
 import hmac
 import time
 from urllib.parse import urlsplit
-from i18n import RUSSIAN, translate
+from i18n import RUSSIAN, ENGLISH, translate
 from pathlib import Path
 from identities import setup_users
 from radio import eligible
@@ -449,7 +449,7 @@ def index():
         'users': [{'id': str(r['user_id']), 'name': r['display'], 'threshold': user_thresholds.get(r['user_id'], 0)} for r in known_raters],
         'ratings': {str(song['song_id']): {str(uid): score for uid, score in ratings_matrix.get(song['song_id'], {}).items()} for song in songs},
         'progress': progress, 'libraryTotal': library_total,
-        'messages': RUSSIAN if session.get('language') == 'ru' else {},
+        'messages': RUSSIAN if session.get('language') == 'ru' else ENGLISH,
     }
     return render_template('index.html', songs=songs, total=total, page=page, pages=pages,
         search_query=search_query, avg_filter=avg_filter, banned_filter=banned_filter, not_rated_by=not_rated_by,

@@ -2,8 +2,8 @@
   <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
   <label>{{ t('Language') }}
     <select name="lang" aria-label="{{ t('Language') }}" onchange="this.form.requestSubmit()">
-      <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
-      <option value="ru" {% if language == 'ru' %}selected{% endif %}>Русский</option>
+      <option value="en" {% if language == 'en' %}selected{% endif %}>english</option>
+      <option value="ru" {% if language == 'ru' %}selected{% endif %}>русский</option>
     </select>
   </label>
   <noscript><button type="submit">{{ t('Apply') }}</button></noscript>

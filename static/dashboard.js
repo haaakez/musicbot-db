@@ -1,7 +1,7 @@
 'use strict';
 
 const state = JSON.parse(document.getElementById('dashboard-data').textContent);
-const text = (key, values = {}) => (state.messages?.[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
+const text = (key, values = {}) => (state.messages?.[key] || key.toLowerCase()).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
 const filters = document.getElementById('filters');
 const statusLine = document.getElementById('save-status');
 const users = new Map(state.users.map(user => [user.id, user]));
