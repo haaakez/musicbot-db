@@ -28,11 +28,11 @@ pkgs.mkShell {
 
     python -c 'import wavelink' >/dev/null 2>&1 || {
       pip install --upgrade pip setuptools wheel
-      pip install "discord.py[voice]" Flask wavelink
+      pip install -r requirements.txt
     }
     
     echo "🎵 Music Bot & Lavalink environment ready"
     echo "▶️ Run 'java -jar Lavalink.jar' in one terminal"
-    echo "▶️ Run 'python your_bot_file.py' in another!"
+    echo "▶️ Run 'python main.py' in another!"
   '';
 }

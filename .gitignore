@@ -13,5 +13,6 @@ token.txt
 test_search.py
 main-ytdlp.py
 plugins/
-Lavalink.jarmusic_bot.db-shm
+Lavalink.jar
+music_bot.db-shm
 music_bot.db-wal

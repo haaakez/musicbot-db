@@ -1,14 +1,16 @@
 server: 
   port: 2333
-  address: 0.0.0.0
+  address: 127.0.0.1
 lavalink:
   plugins:
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.1"
       repository: "https://maven.lavalink.dev/releases"
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
+      repository: "https://maven.lavalink.dev/releases"
     - dependency: "com.github.Devoxin:LavaDSPX-Plugin:0.0.5"
       repository: "https://jitpack.io"
   server:
-    password: "youshallnotpass"
+    password: "${LAVALINK_PASSWORD:youshallnotpass}"
     sources:
       youtube: false
       bandcamp: true
@@ -17,3 +19,20 @@ lavalink:
       vimeo: true
       http: true
       local: false
+
+# These are opt-in: set the matching environment variables before starting Java.
+plugins:
+  lavasrc:
+    providers:
+      - 'ytsearch:"%ISRC%"'
+      - "ytsearch:%QUERY%"
+    sources:
+      spotify: ${SPOTIFY_ENABLED:false}
+      applemusic: ${APPLE_MUSIC_ENABLED:false}
+      deezer: false
+    spotify:
+      clientId: "${SPOTIFY_CLIENT_ID:}"
+      clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
+    applemusic:
+      countryCode: "${APPLE_MUSIC_COUNTRY:US}"
+      mediaAPIToken: "${APPLE_MUSIC_TOKEN:}"
