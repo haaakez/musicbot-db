@@ -18,6 +18,7 @@ from sync_playback import SyncPlayback
 from preferences import setup_settings, read_settings, write_settings, register_guild
 from presentation import TrackPresentation
 from source_resolution import resolve_tracks
+from backup_db import maintain_backups
 
 DB_NAME = "music_bot.db"
 
@@ -404,6 +405,7 @@ async def on_voice_state_update(member, before, after):
                 radio_active[guild.id] = False
                 if guild.voice_client:
                     await presentation.clear(guild.id)
+                    await sync_playback.leave(guild.id)
                     await guild.voice_client.disconnect()
 
 @bot.event
@@ -465,6 +467,9 @@ async def on_wavelink_track_end(payload: wavelink.TrackEndEventPayload):
 async def advance_queue(payload):
     player = payload.player
     if not player or player is not bot.get_guild(player.guild.id).voice_client: return
+    # A late event from a replaced track must not advance the new track's queue.
+    if player.current and payload.track and player.current.encoded != payload.track.encoded:
+        return
 
     recent_end_reasons[player.guild.id] = str(payload.reason)
     print(f"track ended in {player.guild.id}: {payload.track.title if payload.track else 'unknown'}; reason={payload.reason}")
@@ -997,11 +1002,13 @@ async def main():
     async with bot:
         await sync_playback.start()
         display_task = asyncio.create_task(presentation.maintain())
+        backup_task = asyncio.create_task(maintain_backups(DB_NAME))
         try:
             await bot.start(TOKEN)
         finally:
             display_task.cancel()
-            await asyncio.gather(display_task, return_exceptions=True)
+            backup_task.cancel()
+            await asyncio.gather(display_task, backup_task, return_exceptions=True)
             for guild in bot.guilds:
                 await presentation.clear(guild.id)
             await sync_playback.close()

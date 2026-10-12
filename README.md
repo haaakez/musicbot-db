@@ -114,7 +114,7 @@ b!play amsearch:<query>
 - “everyone likes”: everyone rated 2 or 3.
 - “missing my rating”: tracks the selected person has not rated.
 - “needs review”: missing ratings, disagreements, or unresolved links.
-- custom filters saved in the browser; cached usernames with manual refresh.
+- cached usernames with manual refresh.
 
 **—** clears a rating. apply the view again to refresh filtering after edits. the preview does not change the bot's settings. anyone logged in can edit all ratings.
 
@@ -146,3 +146,30 @@ youtube signature decoding uses the public yt-cipher service at `https://cipher.
 the youtube plugin is pinned to development build `6579cdfd8fbfffad7c95b72fc07ff81c11d9e4de` for the upstream ios playback fix, with ios tried before mweb. this is newer development code than stable 1.18.2; playback may still fail as youtube changes. to revert, restore dependency version `1.18.2` and the releases repository in `application.yml`, remove the development youtube jar from `plugins`, and restart lavalink.
 
 all playback uses lavadspx adaptive peak attenuation, including radio and synced channels. it reduces peaks above amplitude `0.4` without boosting quiet recordings. this is not measured lufs normalization; songs can still differ in perceived loudness.
+
+## database backups
+
+the bot creates a consistent sqlite snapshot at startup and every six hours, keeping the latest 28 snapshots in `backups/`. snapshots include songs, ratings, usernames, thresholds, and server settings. they are checked before publication; backup failures are logged without stopping playback.
+
+```bash
+# create a backup now, including while the bot is running
+python backup_db.py
+# choose another destination or retention count
+python backup_db.py --directory /path/to/backups --keep 28
+```
+
+set `DB_BACKUP_DIR`, `DB_BACKUP_HOURS`, and `DB_BACKUP_KEEP` in `.env` to change the automatic schedule. automatic backups run while the bot is running. keep a copy on another disk or machine to protect against disk failure.
+
+```bash
+# restore: stop the bot and dashboard first, then preserve the current database
+python backup_db.py
+# replace the example snapshot path with the backup to restore
+python - <<'PY'
+import sqlite3
+from contextlib import closing
+with closing(sqlite3.connect('file:backups/music_bot-YYYYMMDDTHHMMSSffffffZ.sqlite3?mode=ro', uri=True)) as source:
+    with closing(sqlite3.connect('music_bot.db')) as destination:
+        source.backup(destination)
+PY
+# restart the bot and dashboard
+```

@@ -18,3 +18,4 @@ music_bot.db-shm
 music_bot.db-wal
 
 .audio-cache/
+backups/
