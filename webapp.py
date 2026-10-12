@@ -1,4 +1,4 @@
-from flask import Flask, g, redirect, render_template, request, session, url_for, abort
+from flask import Flask, g, redirect, render_template, request, session, url_for, abort, jsonify
 import sqlite3
 import os
 import json
@@ -8,6 +8,12 @@ import re
 import math
 import secrets
 import hmac
+import time
+from urllib.parse import urlsplit
+from i18n import RUSSIAN, translate
+from pathlib import Path
+from identities import setup_users
+from radio import eligible
 
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
@@ -16,11 +22,19 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'password')
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN') or os.environ.get('DISCORD_TOKEN')
+if not DISCORD_BOT_TOKEN and Path('token.txt').is_file():
+    DISCORD_BOT_TOKEN = Path('token.txt').read_text(encoding='utf-8').strip()
+
+
+def t(text, **values):
+    return translate(session.get('language', 'en'), text, **values)
 
 
 def login_required(func):
     def wrapper(*args, **kwargs):
         if not session.get('logged_in'):
+            if wants_json():
+                return jsonify(error=t('Your session expired. Reload and sign in again.')), 401
             return redirect(url_for('login'))
         return func(*args, **kwargs)
     wrapper.__name__ = func.__name__
@@ -65,6 +79,7 @@ def ensure_db_schema():
                     min_rating REAL DEFAULT 0.0
                 )''')
     
+    setup_users(conn)
     conn.commit()
     conn.close()
 
@@ -93,10 +108,10 @@ def get_rating_summary(song_ids):
         return {}
     placeholders = ','.join('?' for _ in song_ids)
     rows = query_db(
-        f'SELECT song_id, AVG(CASE WHEN score >= 0 THEN score END) AS avg_score, COUNT(CASE WHEN score >= 0 THEN 1 END) AS count FROM ratings WHERE song_id IN ({placeholders}) GROUP BY song_id',
+        f'SELECT song_id, AVG(CASE WHEN score >= 0 THEN score END) AS avg_score, COUNT(CASE WHEN score >= 0 THEN 1 END) AS count, COUNT(*) AS rated_count FROM ratings WHERE song_id IN ({placeholders}) GROUP BY song_id',
         tuple(song_ids)
     )
-    return {row['song_id']: {'avg_score': row['avg_score'], 'count': row['count']} for row in rows}
+    return {row['song_id']: {'avg_score': row['avg_score'], 'count': row['count'], 'rated_count': row['rated_count']} for row in rows}
 
 
 def parse_average_filter(value):
@@ -127,11 +142,11 @@ def fetch_discord_username(user_id):
     req.add_header('Authorization', f'Bot {DISCORD_BOT_TOKEN}')
     req.add_header('User-Agent', 'MusicBotDB/1.0')
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             username = data.get('username')
             discriminator = data.get('discriminator')
-            if username and discriminator:
+            if username and discriminator and discriminator != '0':
                 return f'{username}#{discriminator}'
             return username
     except Exception:
@@ -139,19 +154,20 @@ def fetch_discord_username(user_id):
 
 
 def get_known_raters():
-    rows = query_db('SELECT user_id, MAX(username) AS username FROM ratings WHERE user_id IS NOT NULL GROUP BY user_id ORDER BY username COLLATE NOCASE')
+    # New bot ratings also enter this registry; old databases are backfilled here.
+    setup_users(get_db())
+    get_db().commit()
+    rows = query_db('SELECT user_id, username, checked_at FROM users ORDER BY username COLLATE NOCASE, user_id')
     raters = []
     for row in rows:
-        user_id = row['user_id']
-        username = row['username']
-        if not username or not username.strip():
+        user_id, username = row['user_id'], row['username']
+        if not username and time.time() - row['checked_at'] > 3600:
             username = fetch_discord_username(user_id)
-            if username:
-                execute_db('UPDATE ratings SET username = ? WHERE user_id = ? AND (username IS NULL OR username = "")', (username, user_id))
-        if not username or not username.strip():
-            username = f'User {user_id}'
-        raters.append({'display': username, 'value': f'id:{user_id}', 'user_id': user_id})
-    return raters
+            execute_db('UPDATE users SET username = COALESCE(?, username), checked_at = ? WHERE user_id = ?',
+                       (username, time.time(), user_id))
+        display = username or t('Unknown user ({id})', id=user_id)
+        raters.append({'display': display, 'value': f'id:{user_id}', 'user_id': user_id})
+    return sorted(raters, key=lambda r: (r['display'].casefold(), r['user_id']))
 
 
 def get_user_thresholds():
@@ -160,9 +176,28 @@ def get_user_thresholds():
 
 
 def get_username_for_user_id(user_id):
-    row = query_db('SELECT username FROM ratings WHERE user_id = ? AND username IS NOT NULL LIMIT 1', (user_id,), one=True)
-    db_username = row['username'] if row else None
-    return db_username or fetch_discord_username(user_id)
+    row = query_db('SELECT username FROM users WHERE user_id = ?', (user_id,), one=True)
+    return row['username'] if row else None
+
+
+def get_progress():
+    total = query_db('SELECT COUNT(*) AS n FROM songs', one=True)['n']
+    counts = query_db('SELECT user_id, COUNT(*) AS n FROM ratings GROUP BY user_id')
+    return total, {str(row['user_id']): row['n'] for row in counts}
+
+
+def listening_preview(scores, listeners, names, thresholds, ignore_unrated):
+    threshold = max((thresholds.get(uid, 0) for uid in listeners), default=0)
+    blockers = []
+    for uid in listeners:
+        score = scores.get(uid)
+        if score == -1:
+            blockers.append(t('{name}: veto', name=names[uid]))
+        elif score is None and not ignore_unrated:
+            blockers.append(t('{name}: unrated', name=names[uid]))
+        elif score is not None and score < threshold:
+            blockers.append(t('{name}: {score} below {threshold}', name=names[uid], score=score, threshold=f'{threshold:g}'))
+    return {'allowed': eligible(scores, listeners, threshold, ignore_unrated), 'blockers': blockers}
 
 
 def get_ratings_matrix(song_ids, raters):
@@ -184,7 +219,8 @@ def parse_rater_value(value):
         return None, None
     if value.startswith('id:'):
         try:
-            return int(value.split(':', 1)[1]), None
+            user_id = int(value.split(':', 1)[1])
+            return (user_id, None) if 0 < user_id <= 9223372036854775807 else (None, None)
         except ValueError:
             return None, None
     if value.startswith('name:'):
@@ -242,10 +278,20 @@ def csrf_token():
 @app.context_processor
 def template_helpers():
     def page_url(page):
-        args = request.args.to_dict()
+        args = request.args.to_dict(flat=False)
         args['page'] = page
         return url_for('index', **args)
-    return {'csrf_token': csrf_token, 'page_url': page_url}
+    def sort_url(column):
+        args = request.args.to_dict(flat=False)
+        current = request.args.get('sort', 'relevance' if request.args.get('q') else 'title')
+        default_direction = 'asc' if current == 'title' else 'desc'
+        direction = request.args.get('direction', default_direction)
+        args['sort'] = column
+        args['direction'] = ('desc' if direction == 'asc' else 'asc') if current == column else ('asc' if column == 'title' else 'desc')
+        args['page'] = 1
+        return url_for('index', **args)
+    return {'csrf_token': csrf_token, 'page_url': page_url, 'sort_url': sort_url,
+            't': t, 'language': session.get('language', 'en')}
 
 
 @app.before_request
@@ -254,12 +300,36 @@ def protect_forms():
         expected = session.get('csrf_token', '')
         supplied = request.form.get('csrf_token', '')
         if not expected or not hmac.compare_digest(expected, supplied):
-            abort(400, 'This form expired. Reload the page and try again.')
+            if wants_json():
+                return jsonify(error=t('This form expired. Reload the page and try again.')), 400
+            abort(400, t('This form expired. Reload the page and try again.'))
+
+
+def wants_json():
+    return request.headers.get('Accept') == 'application/json'
 
 
 def back_to_library():
     # Only construct a local library URL; never trust a submitted redirect URL.
     return redirect(url_for('index') + '?' + request.form.get('filters', ''))
+
+
+@app.route('/language')
+def change_language():
+    language = request.args.get('lang', 'en')
+    if language not in ('en', 'ru'):
+        abort(400)
+    session['language'] = language
+    target = request.args.get('next', url_for('index'))
+    try:
+        parsed = urlsplit(target)
+    except ValueError:
+        target = url_for('index')
+        parsed = urlsplit(target)
+    allowed = parsed.path in ('/', '/login', '/add') or re.fullmatch(r'/edit/[0-9]+', parsed.path)
+    if parsed.scheme or parsed.netloc or not allowed or '\\' in target or any(ord(c) < 32 for c in target):
+        target = url_for('index')
+    return redirect(target)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -271,13 +341,15 @@ def login():
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session['logged_in'] = True
             return redirect(url_for('index'))
-        error = 'Invalid username or password.'
+        error = t('Invalid username or password.')
     return render_template('login.html', error=error)
 
 
 @app.route('/logout')
 def logout():
+    language = session.get('language', 'en')
     session.clear()
+    session['language'] = language
     return redirect(url_for('login'))
 
 
@@ -288,104 +360,120 @@ def index():
     avg_filter = request.args.get('avg_filter', 'all')
     banned_filter = request.args.get('banned_filter', 'all')
     not_rated_by = request.args.get('not_rated_by', 'all')
-
-    if search_query:
-        norm_q = normalize_search(search_query)
-        all_rows = query_db('SELECT song_id, title, url, play_count, last_played FROM songs')
-        scored = []
-        for row in all_rows:
-            title = row['title'] or ''
-            title_norm = normalize_search(title)
-            if not title_norm:
-                continue
-
-            ratio = difflib.SequenceMatcher(None, norm_q, title_norm).ratio()
-            score = ratio
-
-            if title_norm == norm_q:
-                score = max(score, 0.99)
-            elif title_norm.startswith(norm_q):
-                score = max(score, 0.85)
-            elif norm_q in title_norm:
-                score = max(score, 0.7)
-
-            play_count = row['play_count'] or 0
-            score += min(play_count, 100) * 0.001
-
-            if score >= 0.25:
-                scored.append((score, row))
-
-        scored.sort(key=lambda x: (-x[0], - (x[1]['play_count'] or 0), x[1]['title'] or ''))
-        songs = [r for _, r in scored]
-    else:
-        songs = query_db('SELECT song_id, title, url, play_count, last_played FROM songs ORDER BY title COLLATE NOCASE')
-
-    song_ids = [song['song_id'] for song in songs]
-    rating_summary = get_rating_summary(song_ids)
-    song_ratings = get_ratings_for_song_ids(song_ids)
+    view = request.args.get('view', 'all')
+    if view not in ('all', 'everyone', 'missing', 'review'):
+        view = 'all'
+    sort = request.args.get('sort', 'relevance' if search_query else 'title')
+    if sort not in ('title', 'play_count', 'last_played', 'coverage', 'relevance'):
+        sort = 'title'
+    direction = request.args.get('direction', 'desc' if sort in ('play_count', 'last_played', 'coverage', 'relevance') else 'asc')
+    direction = 'desc' if direction == 'desc' else 'asc'
     known_raters = get_known_raters()
+    names = {r['user_id']: r['display'] for r in known_raters}
     user_thresholds = get_user_thresholds()
+    viewer = request.args.get('viewer', session.get('viewer', ''))
+    if str(viewer).isdecimal() and int(viewer) in names:
+        viewer = int(viewer)
+        session['viewer'] = str(viewer)
+    else:
+        viewer = None
+        if 'viewer' in request.args:
+            session.pop('viewer', None)
+    listeners = list(dict.fromkeys(int(value) for value in request.args.getlist('listener')
+                                  if value.isdecimal() and int(value) in names))
+    ignore_unrated = request.args.get('ignore_unrated', 'on') == 'on'
+    threshold = max((user_thresholds.get(uid, 0) for uid in listeners), default=0)
+    songs = query_db('SELECT song_id, title, url, play_count, last_played FROM songs')
+    song_ids = [row['song_id'] for row in songs]
+    rating_summary = get_rating_summary(song_ids)
     ratings_matrix = get_ratings_matrix(song_ids, known_raters)
-
-    avg_filter_parsed = parse_average_filter(avg_filter)
-    selected_rater_id = None
-    if not_rated_by and not_rated_by.startswith('id:'):
-        try:
-            selected_rater_id = int(not_rated_by.split(':', 1)[1])
-        except ValueError:
-            selected_rater_id = None
-
-    filtered_songs = []
+    library_total, progress = get_progress()
+    avg_rule = parse_average_filter(avg_filter)
+    missing_id = not_rated_by.removeprefix('id:') if not_rated_by.startswith('id:') else ''
+    missing_id = int(missing_id) if missing_id.isdecimal() else None
+    relevance = {}
+    filtered = []
     for song in songs:
-        song_id = song['song_id']
-        summary = rating_summary.get(song_id, {'avg_score': None, 'count': 0})
-        avg_score = summary['avg_score']
-
-        if avg_filter_parsed:
-            op, threshold = avg_filter_parsed
-            if avg_score is None:
+        sid = song['song_id']
+        scores = ratings_matrix.get(sid, {})
+        summary = rating_summary.get(sid, {'avg_score': None, 'count': 0, 'rated_count': 0})
+        avg = summary['avg_score']
+        if search_query:
+            query, title = normalize_search(search_query), normalize_search(song['title'] or '')
+            score = difflib.SequenceMatcher(None, query, title).ratio()
+            if query and query in title:
+                score = max(score, .7)
+            if query == title:
+                score = 1
+            if not query or score < .25:
                 continue
-            if op == '>=' and avg_score < threshold:
-                continue
-            if op == '=' and avg_score != threshold:
-                continue
-
-        if banned_filter == 'banned' and not is_song_banned(song_id, song_ratings):
+            relevance[sid] = score
+        if avg_rule and (avg is None or (avg_rule[0] == '>=' and avg < avg_rule[1]) or (avg_rule[0] == '=' and avg != avg_rule[1])):
             continue
-        if banned_filter == 'not_banned' and is_song_banned(song_id, song_ratings):
+        banned = -1 in scores.values()
+        if banned_filter == 'banned' and not banned or banned_filter == 'not_banned' and banned:
             continue
-
-        if selected_rater_id is not None:
-            if ratings_matrix.get(song_id, {}).get(selected_rater_id) is not None:
-                continue
-
-        filtered_songs.append(song)
-
-    songs = filtered_songs
-    song_ids = [song['song_id'] for song in songs]
-    ratings_matrix = get_ratings_matrix(song_ids, known_raters)
-
-    total = len(songs)
+        if missing_id is not None and missing_id in scores:
+            continue
+        if view == 'everyone' and (not names or any(scores.get(uid, -1) < 2 for uid in names)):
+            continue
+        if view == 'missing' and (viewer is None or viewer in scores):
+            continue
+        disagreement = len(scores) > 1 and max(scores.values()) - min(scores.values()) >= 2
+        if view == 'review' and song['url'] and len(scores) >= len(names) and not disagreement:
+            continue
+        filtered.append(song)
+    def sort_key(song):
+        sid = song['song_id']
+        if sort == 'title':
+            return (song['title'] or '').casefold()
+        if sort == 'coverage':
+            return rating_summary.get(sid, {}).get('rated_count', 0)
+        if sort == 'relevance':
+            return relevance.get(sid, 0)
+        return song[sort] if song[sort] is not None else (0 if sort == 'play_count' else '')
+    filtered.sort(key=lambda song: ((song['title'] or '').casefold(), song['song_id']))
+    filtered.sort(key=sort_key, reverse=direction == 'desc')
+    if sort == 'last_played':
+        filtered.sort(key=lambda song: song['last_played'] is None)  # Unknown dates always last.
+    total = len(filtered)
     pages = max(1, math.ceil(total / 50))
     try:
         page = max(1, min(pages, int(request.args.get('page', 1))))
     except ValueError:
         page = 1
-    songs = songs[(page - 1) * 50:page * 50]
-    return render_template(
-        'index.html',
-        total=total, page=page, pages=pages,
-        songs=songs,
-        search_query=search_query,
-        avg_filter=avg_filter,
-        banned_filter=banned_filter,
-        not_rated_by=not_rated_by,
-        rating_summary=rating_summary,
-        song_ratings=song_ratings,
-        known_raters=known_raters,
-        user_thresholds=user_thresholds,
-        ratings_matrix=ratings_matrix
-    )
+    songs = filtered[(page - 1) * 50:page * 50]
+    previews = {song['song_id']: listening_preview(ratings_matrix.get(song['song_id'], {}), listeners,
+                                                names, user_thresholds, ignore_unrated) for song in songs}
+    dashboard_data = {
+        'users': [{'id': str(r['user_id']), 'name': r['display'], 'threshold': user_thresholds.get(r['user_id'], 0)} for r in known_raters],
+        'ratings': {str(song['song_id']): {str(uid): score for uid, score in ratings_matrix.get(song['song_id'], {}).items()} for song in songs},
+        'progress': progress, 'libraryTotal': library_total,
+        'messages': RUSSIAN if session.get('language') == 'ru' else {},
+    }
+    return render_template('index.html', songs=songs, total=total, page=page, pages=pages,
+        search_query=search_query, avg_filter=avg_filter, banned_filter=banned_filter, not_rated_by=not_rated_by,
+        view=view, viewer=viewer, sort=sort, direction=direction, known_raters=known_raters,
+        user_thresholds=user_thresholds, rating_summary=rating_summary, ratings_matrix=ratings_matrix,
+        library_total=library_total, progress=progress, listeners=listeners, ignore_unrated=ignore_unrated,
+        threshold=threshold, previews=previews, dashboard_data=dashboard_data)
+
+
+@app.route('/refresh_usernames', methods=['POST'])
+@login_required
+def refresh_usernames():
+    users = query_db('SELECT user_id FROM users')
+    updated = 0
+    for row in users:
+        name = fetch_discord_username(row['user_id'])
+        if name:
+            execute_db('UPDATE users SET username=?, checked_at=? WHERE user_id=?',
+                       (name, time.time(), row['user_id']))
+            execute_db('UPDATE ratings SET username=? WHERE user_id=?', (name, row['user_id']))
+            updated += 1
+    if wants_json():
+        return jsonify(updated=updated, total=len(users))
+    return back_to_library()
 
 
 @app.route('/update_threshold/<int:user_id>', methods=['POST'])
@@ -394,42 +482,55 @@ def update_threshold(user_id):
     try:
         min_rating = float(request.form.get('min_rating', '0.0'))
     except ValueError:
-        abort(400, 'Invalid threshold')
+        return rating_error('Invalid threshold', 400)
     if not math.isfinite(min_rating) or not 0 <= min_rating <= 3:
-        abort(400, 'Threshold must be between 0 and 3')
+        return rating_error('Threshold must be between 0 and 3', 400)
     execute_db('INSERT OR REPLACE INTO user_thresholds (user_id, min_rating) VALUES (?, ?)', (user_id, min_rating))
+    if wants_json():
+        return jsonify(user_id=str(user_id), min_rating=min_rating)
     return back_to_library()
 
 
 @app.route('/rate/<int:song_id>', methods=['POST'])
 @login_required
 def rate_song(song_id):
-    rater_value = request.form.get('rater', '').strip()
-    user_id, username = parse_rater_value(rater_value)
-
-    if user_id is not None and not username:
-        username = get_username_for_user_id(user_id)
-
-    if user_id is None:
-        abort(400, 'Choose a Discord user')
-    if request.form.get('score') == 'unrated':
-        execute_db('DELETE FROM ratings WHERE song_id = ? AND user_id = ?', (song_id, user_id))
-        return back_to_library()
+    user_id, _ = parse_rater_value(request.form.get('rater', '').strip())
+    if user_id is None or not query_db('SELECT user_id FROM users WHERE user_id=?', (user_id,), one=True):
+        return rating_error('Choose a known Discord user.', 400)
+    value = request.form.get('score', '')
     try:
-        score = int(request.form.get('score', ''))
+        score = None if value == 'unrated' else int(value)
     except ValueError:
-        abort(400, 'Invalid rating')
-
-    if score not in [-1, 0, 1, 2, 3]:
-        abort(400, 'Invalid rating')
-
-    execute_db(
-        'INSERT OR REPLACE INTO ratings (song_id, user_id, username, score) VALUES (?, ?, ?, ?)',
-        (song_id, user_id, username, score)
-    )
-    if user_id is not None and username:
-        execute_db('UPDATE ratings SET username = ? WHERE user_id = ? AND username IS NULL', (username, user_id))
+        return rating_error('Invalid rating.', 400)
+    if score is not None and score not in (-1, 0, 1, 2, 3):
+        return rating_error('Invalid rating.', 400)
+    conn = get_db()
+    with conn:
+        conn.execute('BEGIN IMMEDIATE')
+        if not conn.execute('SELECT song_id FROM songs WHERE song_id=?', (song_id,)).fetchone():
+            return rating_error('This song was deleted. Reload the library.', 404)
+        old = conn.execute('SELECT score FROM ratings WHERE song_id=? AND user_id=?', (song_id, user_id)).fetchone()
+        previous = old['score'] if old else None
+        expected = request.form.get('expected')
+        if expected is not None and expected != ('unrated' if previous is None else str(previous)):
+            return rating_error('This rating changed elsewhere. Reload before editing it.', 409)
+        if score is None:
+            conn.execute('DELETE FROM ratings WHERE song_id=? AND user_id=?', (song_id, user_id))
+        else:
+            conn.execute("INSERT INTO ratings (song_id, user_id, username, score) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(song_id, user_id) DO UPDATE SET score=excluded.score, username=excluded.username",
+                (song_id, user_id, get_username_for_user_id(user_id), score))
+    if wants_json():
+        summary = get_rating_summary([song_id]).get(song_id, {'avg_score': None, 'count': 0, 'rated_count': 0})
+        total, progress = get_progress()
+        return jsonify(score=score, previous=previous, summary=summary, progress=progress, library_total=total)
     return back_to_library()
+
+
+def rating_error(message, status):
+    if wants_json():
+        return jsonify(error=t(message)), status
+    abort(status, t(message))
 
 
 @app.route('/add', methods=['GET', 'POST'])

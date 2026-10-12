@@ -12,6 +12,7 @@ import difflib
 import math
 import functools
 from radio import eligible, weight
+from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
 
 DB_NAME = "music_bot.db"
@@ -56,6 +57,7 @@ def setup_db():
     c.execute('''CREATE TABLE IF NOT EXISTS guild_settings (
         guild_id INTEGER PRIMARY KEY, ignore_unrated INTEGER NOT NULL DEFAULT 1
     )''')
+    setup_users(conn)
     c.execute('PRAGMA foreign_keys = ON')
     c.execute('PRAGMA journal_mode = WAL')
     conn.commit()
@@ -207,6 +209,7 @@ class RatingView(View):
 
     async def save_rating(self, interaction: discord.Interaction, score: int):
         user_id = interaction.user.id
+        await asyncio.to_thread(remember_user, DB_NAME, user_id, interaction.user.name)
         run_query("INSERT OR REPLACE INTO ratings (user_id, song_id, username, score) VALUES (?, ?, ?, ?)",
                   (user_id, self.song_id, interaction.user.name, score))
 
@@ -332,6 +335,11 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+    rows = run_query('SELECT user_id FROM users', fetch=True) or []
+    for (user_id,) in rows:
+        user = bot.get_user(user_id)
+        if user:
+            await asyncio.to_thread(remember_user, DB_NAME, user_id, user.name)
     count = import_songs_from_txt()
     if count > 0: print(f"Imported {count} songs on boot.")
 
@@ -684,6 +692,7 @@ async def minrating(ctx, score: float):
     if not math.isfinite(score) or score < 0.0 or score > 3.0:
         return await ctx.send(embed=discord.Embed(description="Score must be between 0.0 and 3.0.", color=EMBED_RED))
 
+    await asyncio.to_thread(remember_user, DB_NAME, ctx.author.id, ctx.author.name)
     run_query("INSERT OR REPLACE INTO user_thresholds (user_id, min_rating) VALUES (?, ?)", (ctx.author.id, score))
     await ctx.send(embed=discord.Embed(description=f"Your personal radio rating threshold is set to **{score}**", color=EMBED_BG))
 
@@ -705,6 +714,7 @@ async def rate(ctx, score: int, *, query: str):
     best_match = results[0]
     song_id, song_title = best_match[0], best_match[1]
     user_id, username = ctx.author.id, ctx.author.name
+    await asyncio.to_thread(remember_user, DB_NAME, user_id, username)
 
     run_query("INSERT OR REPLACE INTO ratings (user_id, song_id, username, score) VALUES (?, ?, ?, ?)", (user_id, song_id, username, score))
     run_query("UPDATE ratings SET username = ? WHERE user_id = ? AND username IS NULL", (username, user_id))
