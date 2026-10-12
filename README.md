@@ -74,7 +74,7 @@ ratings: **-1, 0, 1, 2, 3**. missing ratings are separate from 0.
 
 radio uses the highest minimum among listeners. every existing rating must meet it. ratings of 1, 3, and 2 pass at a minimum of 1, but fail at 2. **-1 blocks a song while that person is listening.**
 
-`b!unrated on` allows missing ratings; `off` requires everyone to rate the song. manual requests bypass these rules. radio avoids repeats within a session and favours less-played songs. restart `b!radio` when matching songs run out.
+`b!unrated on` allows missing ratings; `off` requires everyone to rate the song. manual requests bypass these rules. radio favours less-played songs and cycles through the eligible library. when every matching song has played, it starts another cycle. a single eligible song repeats. unavailable tracks are skipped for five minutes; `b!radio` retries them immediately.
 
 ## sync
 
