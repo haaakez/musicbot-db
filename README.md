@@ -128,7 +128,7 @@ run everything from the same directory. keep lavalink private. back up `music_bo
 
 ## audio sources
 
-song searches and saved youtube tracks try a matching soundcloud recording first, then youtube. matching checks the title and, when youtube metadata is available, duration. it can still select a different upload; use an explicit link or search prefix to choose a source.
+song searches try a matching soundcloud recording first, then youtube. matching checks the title but can still select a different upload. explicit links, including saved youtube links, always use the supplied platform and recording. search prefixes also select a platform directly.
 
 ```text
 b!play scsearch:artist title

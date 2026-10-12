@@ -8,7 +8,6 @@ import wavelink
 
 log = logging.getLogger(__name__)
 SEARCH_PREFIX = re.compile(r'^(ytsearch|ytmsearch|scsearch|spsearch|amsearch|dzsearch):')
-YOUTUBE_HOSTS = {'youtube.com', 'www.youtube.com', 'music.youtube.com', 'youtu.be', 'm.youtube.com'}
 
 
 def normalized(title):
@@ -42,30 +41,17 @@ async def resolve_tracks(query, node, title=None):
     if SEARCH_PREFIX.match(query):
         return await search(query)
     host = (urlsplit(query).hostname or '').lower()
-    if host and host not in YOUTUBE_HOSTS:
+    # A supplied link selects that exact recording and platform.
+    if host:
         return await search(query)
 
-    reference = None
-    if host:
-        # Metadata helps match a saved YouTube link to the same recording.
-        try:
-            originals = await search(query)
-            if isinstance(originals, wavelink.Playlist):
-                return originals
-            reference = originals[0] if originals else None
-        except Exception:
-            log.warning('YouTube metadata lookup failed; trying the saved title.', exc_info=True)
-        title = title or (reference.title if reference else None)
-    else:
-        title = title or query
+    title = title or query
 
     if title:
         try:
-            match = best_match(await search(f'scsearch:{title}'), title, reference)
+            match = best_match(await search(f'scsearch:{title}'), title)
             if match:
                 return [match]
         except Exception:
             log.warning('SoundCloud search failed; falling back to YouTube.', exc_info=True)
-    if reference:
-        return [reference]
-    return await search(query if host else f'ytmsearch:{query}')
+    return await search(f'ytmsearch:{query}')
