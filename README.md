@@ -60,6 +60,9 @@ b!loop [track|queue|off]             # b!lp
 b!np
 b!minrating <0–3>                    # b!mr
 b!unrated on|off
+b!embedratings on|off
+b!voicestatus on|off
+b!radioinfo
 b!rate <-1–3> <title or #song_id>
 b!library [page]
 b!sync <channel_id> [second_channel_id]
@@ -103,6 +106,8 @@ b!play amsearch:<query>
 
 ## dashboard
 
+“bot settings” controls ratings in the now-playing embed, the track in voice-channel status, and whether radio allows unrated songs. settings are saved per server and match the commands above. display updates apply within five seconds. voice status needs the bot’s “set voice channel status” permission.
+
 - english and russian, inline saves with undo, and per-person progress.
 - sorting by title, plays, last played, and rating coverage.
 - listening preview showing who blocks a track and why.
@@ -120,3 +125,7 @@ gunicorn --workers 1 --bind 127.0.0.1:5000 webapp:app
 ```
 
 run everything from the same directory. keep lavalink private. back up `music_bot.db` with sqlite's backup api, or stop both apps before copying it.
+
+## playback errors
+
+if the embed appears but no audio plays, run `b!radioinfo` and check the bot and lavalink terminals. audio-source failures are separate from rating filters. restart lavalink after changing plugins in `application.yml`.
