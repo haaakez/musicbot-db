@@ -179,3 +179,17 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
 .language-form { display: inline-flex; align-items: center; margin: 0; }
 .language-form label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--muted); }
 .card > .language-form, .page > .language-form { margin-bottom: 12px; }
+
+.view-shortcuts { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 10px; }
+.view-shortcuts button[aria-pressed=true] { background: var(--primary); border-color: var(--accent); color: #fff; }
+.search-toolbar { padding: 8px; background: var(--surface); border: 1px solid var(--border); }
+.search-toolbar input[name=q] { flex: 1; min-width: 200px; max-width: 620px; }
+.person-progress a { text-decoration: none; }
+.person-progress a:hover { text-decoration: underline; }
+.saved-views { margin-top: 8px; margin-bottom: 0; }
+.rating-guide { margin: 6px 0; }
+th.my-rating, td.my-rating { border-left: 2px solid var(--accent); border-right: 1px solid #5887ad; }
+th.my-rating { color: var(--text); background: #293b49; }
+td.my-rating { background: #26313a; }
+.table-wrap { max-height: 72vh; }
+.song-title { line-height: 1.4; }

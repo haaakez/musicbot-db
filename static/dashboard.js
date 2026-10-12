@@ -275,3 +275,41 @@ if (botSettingsForm) {
     } finally { busy(false); }
   });
 }
+
+// Keep the native select available when JavaScript is disabled.
+document.querySelector('.view-shortcuts').hidden = false;
+document.getElementById('view-select-label').hidden = true;
+// Quick views keep the current search, listener selection and other filters.
+for (const button of document.querySelectorAll('[data-view]')) {
+  button.addEventListener('click', () => {
+    filters.elements.view.value = button.dataset.view;
+    if (button.dataset.view === 'missing' && !filters.elements.viewer.value) {
+      filters.elements.viewer.focus();
+      filters.elements.viewer.required = true;
+      filters.elements.viewer.reportValidity();
+      return;
+    }
+    filters.elements.viewer.required = false;
+    filters.requestSubmit();
+  });
+}
+function highlightIdentity() {
+  const id = filters.elements.viewer.value;
+  for (const cell of document.querySelectorAll('[data-rating-user]')) {
+    cell.classList.toggle('my-rating', cell.dataset.ratingUser === id);
+  }
+}
+filters.elements.viewer.addEventListener('change', () => {
+  highlightIdentity();
+  if (filters.elements.view.value === 'missing') filters.requestSubmit();
+});
+highlightIdentity();
+// Slash focuses search without interfering with typing or browser shortcuts.
+document.addEventListener('keydown', event => {
+  if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey &&
+      !event.target.closest('input, select, textarea, [contenteditable]')) {
+    event.preventDefault();
+    filters.elements.q.focus();
+    filters.elements.q.select();
+  }
+});

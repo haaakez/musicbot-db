@@ -142,6 +142,13 @@ RUSSIAN.update({
     'Choose on or off for each setting.': 'для каждой настройки выберите вкл или выкл.',
 })
 
+RUSSIAN.update({
+    'More filters and sorting': 'дополнительные фильтры и сортировка',
+    'Missing ratings for {name}': 'без оценки: {name}',
+    'Ratings save automatically. — means unrated; -1 blocks playback. Select your name to highlight your column.': 'оценки сохраняются автоматически. — означает отсутствие оценки; -1 блокирует трек. выберите имя, чтобы выделить свой столбец.',
+    'Songs and ratings': 'треки и оценки',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',
