@@ -11,7 +11,8 @@ import re
 import difflib
 import math
 import functools
-from radio import eligible, weight
+import time
+from radio import cycle_candidates, weight
 from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
 
@@ -90,6 +91,8 @@ sync_playback = SyncPlayback(bot, sync_tokens)
 
 now_playing_msgs = {}
 radio_active = {}
+unavailable_songs = {}
+last_radio_song = {}
 played_history = {}
 veto_pool = {}
 selection_locks = {}
@@ -295,13 +298,16 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
     songs, ratings, threshold, ignore_unrated = await asyncio.to_thread(load_radio_data, user_ids, guild_id)
     history = played_history.setdefault(guild_id, set())
     veto = veto_pool.setdefault(guild_id, set())
-    candidates = []
-    for song in songs:
-        scores = ratings.get(song[0], {})
+    failures = unavailable_songs.setdefault(guild_id, {})
+    now = time.monotonic()
+    for song_id in list(failures):
+        if failures[song_id] <= now:
+            del failures[song_id]
+    for song_id, scores in ratings.items():
         if -1 in scores.values():
-            veto.add(song[0])
-        if song[0] not in history and eligible(scores, user_ids, threshold, ignore_unrated):
-            candidates.append(song)
+            veto.add(song_id)
+    candidates = cycle_candidates(songs, ratings, user_ids, threshold, ignore_unrated,
+                                  history, failures, last_radio_song.get(guild_id))
     # Iteration keeps a library full of broken links from building a recursive call stack.
     for _ in range(min(20, len(candidates))):
         returned = [song for song in candidates if song[0] in veto]
@@ -312,7 +318,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
         try:
             tracks = await search_tracks(url or title)
             if not tracks:
-                history.add(song_id)
+                failures[song_id] = time.monotonic() + 300
                 continue
             track = tracks[0]
             if not url:
@@ -326,14 +332,20 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
             await vc.queue.put_wait(track)
             if not vc.playing:
                 await vc.play(vc.queue.get())
+            last_radio_song[guild_id] = song_id
             return
         except Exception as exc:
-            history.add(song_id)
+            failures[song_id] = time.monotonic() + 300
             print(f"Radio could not play song {song_id}: {exc}")
     radio_active[guild_id] = False
     if text_channel:
-        await text_channel.send("Radio stopped: no playable songs left matching listeners' ratings. "
-                                "Try b!unrated on, lower the minimum, or restart b!radio.")
+        if failures:
+            await text_channel.send("radio stopped: no playable matching songs found. unavailable tracks are "
+                                    "held back for five minutes; b!radio retries them immediately.")
+        else:
+            await text_channel.send(f"radio stopped: no songs meet the listener ratings "
+                                    f"(minimum {threshold:g}; unrated {'allowed' if ignore_unrated else 'blocked'}). "
+                                    "check -1 ratings, b!minrating, and b!unrated.")
 
 @bot.event
 async def on_ready():
@@ -427,6 +439,12 @@ async def advance_queue(payload):
 
     if str(payload.reason).upper() == "REPLACED": return
     if str(payload.reason).upper() == "LOADFAILED":
+        if payload.track:
+            failed_rows = await asyncio.to_thread(run_query, "SELECT song_id FROM songs WHERE url = ?",
+                                                  (payload.track.uri,), True)
+            failures = unavailable_songs.setdefault(player.guild.id, {})
+            for (song_id,) in failed_rows or []:
+                failures[song_id] = time.monotonic() + 300
         player.queue.mode = wavelink.QueueMode.normal
         player.queue.loaded = None
 
@@ -681,6 +699,8 @@ async def radio(ctx):
     if not vc: await ctx.message.author.voice.channel.connect(cls=functools.partial(wavelink.Player, nodes=[wavelink.Pool.get_node("primary")]))
 
     played_history[ctx.guild.id] = set()
+    unavailable_songs[ctx.guild.id] = {}
+    last_radio_song.pop(ctx.guild.id, None)
     veto_pool[ctx.guild.id] = set()
     radio_active[ctx.guild.id] = True
 
