@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="{{ language }}">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ t('About') }} · dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+  </head>
+  <body class="dashboard about-page">
+    <header class="dashboard-heading">
+      <h1>{{ t('About') }}</h1>
+      <div class="toolbar">
+        {% include '_language.html' %}
+        <a class="button secondary" href="{{ url_for('index') }}">dashboard</a>
+      </div>
+    </header>
+    <p>{{ t('Music playback, a shared song library, personal ratings, radio, and synchronized voice channels.') }}</p>
+    <section class="listening-controls">
+      <h2>{{ t('Radio and ratings') }}</h2>
+      <p>{{ t('Ratings range from -1 to 3. — means unrated. -1 blocks a song while that person is listening.') }}</p>
+      <p>{{ t('Radio uses the highest minimum among listeners. Every listener rating must meet it. Missing ratings follow the unrated setting.') }}</p>
+      <p>{{ t('Radio repeats eligible songs. Enable keep connected in bot settings to wait and retry when no tracks qualify. Manual requests bypass rating filters.') }}</p>
+    </section>
+    <section class="listening-controls">
+      <h2>dashboard</h2>
+      <p>{{ t('Ratings save automatically with undo. The listening preview explains which listeners block a song; it does not control playback.') }}</p>
+      <p>{{ t('Add a title or just a link. Link-only entries get their title and cover when playback starts. Use new songs and similar links to organize the library.') }}</p>
+      <p>{{ t('Connection status and the current song update automatically. Backup intervals are configured under automatic backups; the bot must be running.') }}</p>
+    </section>
+    <h2>{{ t('Command reference') }}</h2>
+    <p class="hint">{{ t('Use b!help in Discord for the same command reference. Playback controls require a linked voice channel.') }}</p>
+    <div class="command-reference">
+      <table>
+        <thead><tr><th>{{ t('Command') }}</th><th>{{ t('Description') }}</th></tr></thead>
+        <tbody>{% for command, description in commands %}<tr><td><code>{{ command }}</code></td><td>{{ t(description) }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </body>
+</html>

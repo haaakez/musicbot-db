@@ -163,6 +163,178 @@ RUSSIAN.update({
     'Interval': 'интервал', 'hours': 'ч.', 'No automatic backup recorded yet': 'автоматических копий пока нет',
 })
 
+RUSSIAN.update({'About': 'о боте',
+ 'Command reference': 'команды',
+ 'Command': 'команда',
+ 'Description': 'описание',
+ 'Radio and ratings': 'радио и оценки',
+ 'Music playback, a shared song library, personal ratings, radio, and synchronized voice channels.': 'воспроизведение '
+                                                                                                     'музыки, '
+                                                                                                     'общая '
+                                                                                                     'база '
+                                                                                                     'треков, '
+                                                                                                     'личные '
+                                                                                                     'оценки, '
+                                                                                                     'радио '
+                                                                                                     'и '
+                                                                                                     'синхронизация '
+                                                                                                     'голосовых '
+                                                                                                     'каналов.',
+ 'Ratings range from -1 to 3. — means unrated. -1 blocks a song while that person is listening.': 'оценки от '
+                                                                                                  '-1 до 3. '
+                                                                                                  '— '
+                                                                                                  'означает '
+                                                                                                  'отсутствие '
+                                                                                                  'оценки. '
+                                                                                                  '-1 '
+                                                                                                  'блокирует '
+                                                                                                  'трек, '
+                                                                                                  'пока этот '
+                                                                                                  'участник '
+                                                                                                  'слушает.',
+ 'Radio uses the highest minimum among listeners. Every listener rating must meet it. Missing ratings follow the unrated setting.': 'радио '
+                                                                                                                                    'использует '
+                                                                                                                                    'самый '
+                                                                                                                                    'высокий '
+                                                                                                                                    'минимум '
+                                                                                                                                    'среди '
+                                                                                                                                    'слушателей. '
+                                                                                                                                    'каждая '
+                                                                                                                                    'оценка '
+                                                                                                                                    'должна '
+                                                                                                                                    'ему '
+                                                                                                                                    'соответствовать. '
+                                                                                                                                    'пропущенные '
+                                                                                                                                    'оценки '
+                                                                                                                                    'учитываются '
+                                                                                                                                    'по '
+                                                                                                                                    'настройке '
+                                                                                                                                    'треков '
+                                                                                                                                    'без '
+                                                                                                                                    'оценок.',
+ 'Radio repeats eligible songs. Enable keep connected in bot settings to wait and retry when no tracks qualify. Manual requests bypass rating filters.': 'радио '
+                                                                                                                                                         'повторяет '
+                                                                                                                                                         'подходящие '
+                                                                                                                                                         'треки. '
+                                                                                                                                                         'включите '
+                                                                                                                                                         'сохранение '
+                                                                                                                                                         'подключения '
+                                                                                                                                                         'в '
+                                                                                                                                                         'настройках '
+                                                                                                                                                         'бота, '
+                                                                                                                                                         'чтобы '
+                                                                                                                                                         'ждать '
+                                                                                                                                                         'и '
+                                                                                                                                                         'повторять '
+                                                                                                                                                         'попытки, '
+                                                                                                                                                         'когда '
+                                                                                                                                                         'подходящих '
+                                                                                                                                                         'треков '
+                                                                                                                                                         'нет. '
+                                                                                                                                                         'ручные '
+                                                                                                                                                         'запросы '
+                                                                                                                                                         'обходят '
+                                                                                                                                                         'фильтры '
+                                                                                                                                                         'оценок.',
+ 'Ratings save automatically with undo. The listening preview explains which listeners block a song; it does not control playback.': 'оценки '
+                                                                                                                                     'сохраняются '
+                                                                                                                                     'автоматически '
+                                                                                                                                     'с '
+                                                                                                                                     'возможностью '
+                                                                                                                                     'отмены. '
+                                                                                                                                     'проверка '
+                                                                                                                                     'треков '
+                                                                                                                                     'показывает, '
+                                                                                                                                     'кто '
+                                                                                                                                     'блокирует '
+                                                                                                                                     'трек; '
+                                                                                                                                     'она '
+                                                                                                                                     'не '
+                                                                                                                                     'управляет '
+                                                                                                                                     'воспроизведением.',
+ 'Add a title or just a link. Link-only entries get their title and cover when playback starts. Use new songs and similar links to organize the library.': 'добавьте '
+                                                                                                                                                           'название '
+                                                                                                                                                           'или '
+                                                                                                                                                           'только '
+                                                                                                                                                           'ссылку. '
+                                                                                                                                                           'название '
+                                                                                                                                                           'и '
+                                                                                                                                                           'обложка '
+                                                                                                                                                           'загрузятся '
+                                                                                                                                                           'при '
+                                                                                                                                                           'начале '
+                                                                                                                                                           'воспроизведения. '
+                                                                                                                                                           'фильтры '
+                                                                                                                                                           'новых '
+                                                                                                                                                           'треков '
+                                                                                                                                                           'и '
+                                                                                                                                                           'похожих '
+                                                                                                                                                           'ссылок '
+                                                                                                                                                           'помогают '
+                                                                                                                                                           'упорядочить '
+                                                                                                                                                           'базу.',
+ 'Connection status and the current song update automatically. Backup intervals are configured under automatic backups; the bot must be running.': 'статус '
+                                                                                                                                                   'подключения '
+                                                                                                                                                   'и '
+                                                                                                                                                   'текущий '
+                                                                                                                                                   'трек '
+                                                                                                                                                   'обновляются '
+                                                                                                                                                   'автоматически. '
+                                                                                                                                                   'интервал '
+                                                                                                                                                   'резервного '
+                                                                                                                                                   'копирования '
+                                                                                                                                                   'задаётся '
+                                                                                                                                                   'в '
+                                                                                                                                                   'разделе '
+                                                                                                                                                   'автоматических '
+                                                                                                                                                   'копий; '
+                                                                                                                                                   'бот '
+                                                                                                                                                   'должен '
+                                                                                                                                                   'быть '
+                                                                                                                                                   'запущен.',
+ 'Use b!help in Discord for the same command reference. Playback controls require a linked voice channel.': 'эта '
+                                                                                                            'же '
+                                                                                                            'справка '
+                                                                                                            'доступна '
+                                                                                                            'через '
+                                                                                                            'b!help '
+                                                                                                            'в '
+                                                                                                            'discord. '
+                                                                                                            'для '
+                                                                                                            'управления '
+                                                                                                            'воспроизведением '
+                                                                                                            'нужно '
+                                                                                                            'находиться '
+                                                                                                            'в '
+                                                                                                            'связанном '
+                                                                                                            'голосовом '
+                                                                                                            'канале.',
+ 'Add a song to the library': 'добавить трек в базу',
+ 'Play or queue a song or playlist': 'воспроизвести или добавить в очередь трек или плейлист',
+ 'Start radio using listener ratings': 'запустить радио с учётом оценок слушателей',
+ 'Show the manual queue': 'показать очередь запросов',
+ 'Remove a queued song': 'удалить трек из очереди',
+ 'Move a queued song': 'переместить трек в очереди',
+ 'Shuffle the queue': 'перемешать очередь',
+ 'Clear upcoming songs': 'очистить очередь',
+ 'Skip the current song': 'пропустить текущий трек',
+ 'Stop playback and clear the queue': 'остановить воспроизведение и очистить очередь',
+ 'Disconnect from voice': 'отключиться от голосового канала',
+ 'Pause playback': 'приостановить воспроизведение',
+ 'Resume playback': 'продолжить воспроизведение',
+ 'Seek within the current song': 'перемотать текущий трек',
+ 'Set queue repeat mode': 'задать режим повторения',
+ 'Show the current song': 'показать текущий трек',
+ 'Set your radio minimum': 'задать свой минимум для радио',
+ 'Allow or block missing ratings in radio': 'разрешить или блокировать треки без оценок в радио',
+ 'Show or hide all ratings in track embeds': 'показать или скрыть оценки в сообщениях о треках',
+ 'Show or hide the song in voice status': 'показать или скрыть трек в статусе канала',
+ 'Show radio rules and source failure status': 'показать правила радио и состояние ошибок источников',
+ 'Rate a library song': 'оценить трек из базы',
+ 'Show library songs': 'показать треки из базы',
+ 'Sync playback across up to three voice channels': 'синхронизировать до трёх голосовых каналов',
+ 'Disconnect companion bots': 'отключить дополнительные боты'})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

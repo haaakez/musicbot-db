@@ -197,3 +197,9 @@ td.my-rating { background: #26313a; }
 .runtime-panel { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 7px 8px; margin-bottom: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; }
 #current-track { flex-basis: 100%; overflow-wrap: anywhere; }
 #backup-settings input[type=number] { width: 95px; }
+.about-page { max-width: 1120px; margin: 0 auto; }
+.about-page h2 { font-size: 16px; font-weight: 500; margin: 8px 0; }
+.command-reference { overflow-x: auto; border: 1px solid var(--border); }
+.command-reference table { min-width: 650px; }
+.command-reference th:nth-child(2), .command-reference td:nth-child(2) { position: static; max-width: none; font-weight: 400; }
+.command-reference code { font: inherit; color: var(--accent); white-space: nowrap; }

@@ -2,6 +2,12 @@
 
 a discord music bot with a shared library, personal ratings, radio, playlist queues, playback across up to three voice channels, and a dashboard for managing songs and ratings.
 
+## dashboard
+
+manage songs and ratings, check listening eligibility, view playback status, and configure radio and backups. open “about” for the command reference, also available through `b!help`.
+
+![dashboard](docs/dashboard.png)
+
 ## run
 
 needs python 3.11+, lavalink v4 saved as `Lavalink.jar`, its required java version, and a discord bot with message content and server members intents enabled.

@@ -19,6 +19,7 @@
           <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
           <button type="submit">{{ t('Refresh names') }}</button>
         </form>
+        <a class="button secondary" href="{{ url_for('about') }}">{{ t('About') }}</a>
         <a class="button secondary" href="{{ url_for('logout') }}">{{ t('Logout') }}</a>
       </div>
     </header>

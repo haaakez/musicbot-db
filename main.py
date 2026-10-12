@@ -20,6 +20,7 @@ from presentation import TrackPresentation
 from source_resolution import resolve_tracks
 from backup_db import maintain_backups
 from runtime_status import maintain_status
+from command_help import COMMANDS
 
 from library_metadata import setup_metadata
 
@@ -579,26 +580,8 @@ async def on_wavelink_track_stuck(payload: wavelink.TrackStuckEventPayload):
 
 @bot.command()
 async def help(ctx):
-    commands_list = (
-        "`b!play <query>` (Aliases: `b!p`) - Play a song or add it to the queue\n"
-        "`b!skip` (Aliases: `b!s`) - Skip the current song\n"
-        "`b!stop` (Aliases: `b!st`) - Stop the music and clear the queue\n"
-        "`b!leave` (Aliases: `b!l`) - Disconnect the bot\n"
-        "`b!queue [page]` / `b!remove <number>` / `b!move <from> <to>`\n"
-        "`b!shuffle` / `b!clear` / `b!seek <seconds>`\n"
-        "`b!embedratings on|off` / `b!voicestatus on|off` / `b!radioinfo`\n"
-        "`b!unrated on|off` - Allow or block missing listener ratings\n"
-        "`b!loop [mode]` (Aliases: `b!lp`) - Toggle track/queue looping\n"
-        "`b!pause` (Aliases: `b!pa`) - Pause the current song\n"
-        "`b!resume` (Aliases: `b!re`) - Resume paused song\n"
-        "`b!np` - Show what is currently playing\n"
-        "`b!radio` (Aliases: `b!r`) - Start endless radio mode\n"
-        "`b!minrating <score>` (Aliases: `b!mr`) - Set your personal radio rating threshold\n"
-        "`b!sync <channel ID> [second ID]` / `b!unsync` - Link voice channels\n"
-        "`b!library [page]` - Show song database table\n"
-        "`b!rate <val> <name>` - Rate song by name (-1 to 3)\n"
-    )
-    embed = discord.Embed(title="Commands", description=commands_list, color=EMBED_BG)
+    commands_list = '\n'.join(f'`{command}` — {description.lower()}' for command, description in COMMANDS)
+    embed = discord.Embed(title='commands', description=commands_list, color=EMBED_BG)
     await ctx.send(embed=embed)
 
 @bot.command(aliases=['p'])

@@ -17,6 +17,7 @@ from pathlib import Path
 from identities import setup_users
 from preferences import setup_settings, read_settings, write_settings, read_backup_settings
 from radio import eligible
+from command_help import COMMANDS
 
 from library_metadata import setup_metadata, link_identity
 
@@ -502,6 +503,12 @@ def bot_settings_route():
         if not wants_json():
             return back_to_library()
     return jsonify(guild_id=str(guild_id), settings=read_settings(DB_NAME, guild_id))
+
+
+@app.route('/about')
+@login_required
+def about():
+    return render_template('about.html', commands=COMMANDS)
 
 
 @app.route('/runtime_status')
