@@ -15,6 +15,8 @@ import time
 from radio import cycle_candidates, weight
 from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
+from preferences import setup_settings, read_settings, write_settings, register_guild
+from presentation import TrackPresentation
 
 DB_NAME = "music_bot.db"
 
@@ -63,6 +65,7 @@ def setup_db():
         guild_id INTEGER PRIMARY KEY, ignore_unrated INTEGER NOT NULL DEFAULT 1
     )''')
     setup_users(conn)
+    setup_settings(conn)
     c.close()
     conn.commit()
     conn.close()
@@ -88,6 +91,8 @@ sync_tokens = [os.environ[name] for name in ('DISCORD_SYNC_TOKEN_2', 'DISCORD_SY
 if len(set([TOKEN, *sync_tokens])) != 1 + len(sync_tokens):
     raise RuntimeError('Each sync bot needs a different Discord bot token')
 sync_playback = SyncPlayback(bot, sync_tokens)
+presentation = TrackPresentation(bot, sync_playback, DB_NAME)
+sync_playback.before_leave = presentation.clear_followers
 
 now_playing_msgs = {}
 radio_active = {}
@@ -97,6 +102,8 @@ played_history = {}
 veto_pool = {}
 selection_locks = {}
 bound_channels = {}
+recent_playback_errors = {}
+recent_end_reasons = {}
 
 EMBED_BG = 0x2b2d31
 EMBED_RED = 0xED4245
@@ -258,6 +265,8 @@ async def cleanup_player_message(guild_id):
         try: await now_playing_msgs[guild_id].delete()
         except: pass
         del now_playing_msgs[guild_id]
+    presentation.messages.pop(guild_id, None)
+    presentation.fingerprints.pop(guild_id, None)
 
 def load_radio_data(user_ids, guild_id):
     placeholders = ','.join('?' for _ in user_ids)
@@ -321,6 +330,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
                 failures[song_id] = time.monotonic() + 300
                 continue
             track = tracks[0]
+            track.extras = {'song_id': song_id}
             if not url:
                 await asyncio.to_thread(run_query, "UPDATE songs SET url = ?, title = ? WHERE song_id = ?",
                                         (track.uri, track.title, song_id))
@@ -338,6 +348,8 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
             failures[song_id] = time.monotonic() + 300
             print(f"Radio could not play song {song_id}: {exc}")
     radio_active[guild_id] = False
+    await cleanup_player_message(guild_id)
+    await presentation.clear(guild_id)
     if text_channel:
         if failures:
             await text_channel.send("radio stopped: no playable matching songs found. unavailable tracks are "
@@ -350,6 +362,8 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+    for guild in bot.guilds:
+        await asyncio.to_thread(register_guild, DB_NAME, guild.id, guild.name)
     rows = run_query('SELECT user_id FROM users', fetch=True) or []
     for (user_id,) in rows:
         user = bot.get_user(user_id)
@@ -382,6 +396,7 @@ async def on_voice_state_update(member, before, after):
                     await channel.send(embed=embed)
                 radio_active[guild.id] = False
                 if guild.voice_client:
+                    await presentation.clear(guild.id)
                     await guild.voice_client.disconnect()
 
 @bot.event
@@ -399,12 +414,15 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     current_play_count = 0
     song_id = None
 
-    existing_id = run_query("SELECT song_id, play_count FROM songs WHERE url = ?", (track.uri,), fetch=True)
+    stored_id = getattr(getattr(track, 'extras', None), 'song_id', None)
+    existing_id = run_query("SELECT song_id, play_count FROM songs WHERE song_id = ?", (stored_id,), fetch=True) if stored_id else []
+    if not existing_id:
+        existing_id = run_query("SELECT song_id, play_count FROM songs WHERE url = ?", (track.uri,), fetch=True)
     if existing_id:
         current_play_count = (existing_id[0][1] or 0) + 1
         song_id = existing_id[0][0]
-        run_query("UPDATE songs SET title = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE url = ?",
-                  (track.title, current_play_count, track.uri))
+        run_query("UPDATE songs SET title = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
+                  (track.title, current_play_count, song_id))
     else:
         manual_match = run_query("SELECT song_id, play_count FROM songs WHERE LOWER(title) = ? AND url IS NULL LIMIT 1", (track.title.lower(),), fetch=True)
         if manual_match:
@@ -415,7 +433,8 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
 
     if channel:
         await cleanup_player_message(guild_id)
-        embed = create_embed(track, current_play_count)
+        settings = await asyncio.to_thread(read_settings, DB_NAME, guild_id)
+        embed = await asyncio.to_thread(presentation.build_embed, track, current_play_count, song_id, settings['embed_ratings'])
 
         if song_id is not None:
             view = RatingView(song_id, track.title)
@@ -424,6 +443,8 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
             msg = await channel.send(embed=embed)
 
         now_playing_msgs[guild_id] = msg
+        presentation.remember(guild_id, msg, track, song_id, current_play_count, embed)
+    await presentation.refresh(guild_id)
 
 @bot.event
 async def on_wavelink_track_end(payload: wavelink.TrackEndEventPayload):
@@ -437,10 +458,13 @@ async def advance_queue(payload):
     player = payload.player
     if not player or player is not bot.get_guild(player.guild.id).voice_client: return
 
+    recent_end_reasons[player.guild.id] = str(payload.reason)
+    print(f"track ended in {player.guild.id}: {payload.track.title if payload.track else 'unknown'}; reason={payload.reason}")
     if str(payload.reason).upper() == "REPLACED": return
     if str(payload.reason).upper() == "LOADFAILED":
         if payload.track:
-            failed_rows = await asyncio.to_thread(run_query, "SELECT song_id FROM songs WHERE url = ?",
+            stored_id = getattr(getattr(payload.track, 'extras', None), 'song_id', None)
+            failed_rows = [(stored_id,)] if stored_id else await asyncio.to_thread(run_query, "SELECT song_id FROM songs WHERE url = ?",
                                                   (payload.track.uri,), True)
             failures = unavailable_songs.setdefault(player.guild.id, {})
             for (song_id,) in failed_rows or []:
@@ -461,6 +485,43 @@ async def advance_queue(payload):
             await select_radio_song(player.guild, player.channel, channel)
         else:
             await cleanup_player_message(guild_id)
+            await presentation.clear(guild_id)
+
+
+async def mark_playback_failure(player, track, message):
+    stored_id = getattr(getattr(track, 'extras', None), 'song_id', None)
+    rows = [(stored_id,)] if stored_id else await asyncio.to_thread(run_query, 'SELECT song_id FROM songs WHERE url=?', (track.uri,), True)
+    for (song_id,) in rows or []:
+        unavailable_songs.setdefault(player.guild.id, {})[song_id] = time.monotonic() + 300
+    recent_playback_errors[player.guild.id] = message
+
+
+@bot.event
+async def on_wavelink_track_exception(payload: wavelink.TrackExceptionEventPayload):
+    if not payload.player:
+        return
+    print(f"Lavalink playback error for {payload.track.title}: {payload.exception}")
+    guild = bot.get_guild(payload.player.guild.id)
+    if not guild or payload.player is not guild.voice_client:
+        return
+    message = str(payload.exception.get('message') or payload.exception.get('cause') or 'stream failed')
+    await mark_playback_failure(payload.player, payload.track, message)
+    channel = bound_channels.get(guild.id)
+    if channel:
+        await channel.send(f"playback failed: **{discord.utils.escape_markdown(payload.track.title)}**. "
+                           "this is an audio-source error; details are in the bot and Lavalink terminals.")
+
+
+@bot.event
+async def on_wavelink_track_stuck(payload: wavelink.TrackStuckEventPayload):
+    guild = bot.get_guild(payload.player.guild.id) if payload.player else None
+    if not guild or payload.player is not guild.voice_client:
+        return
+    await mark_playback_failure(payload.player, payload.track, 'audio stream stuck')
+    print(f"audio stream stuck for {payload.track.title}; threshold={payload.threshold}")
+    if payload.player.current and payload.player.current.encoded == payload.track.encoded:
+        await payload.player.skip(force=True)
+
 
 @bot.command()
 async def help(ctx):
@@ -471,6 +532,7 @@ async def help(ctx):
         "`b!leave` (Aliases: `b!l`) - Disconnect the bot\n"
         "`b!queue [page]` / `b!remove <number>` / `b!move <from> <to>`\n"
         "`b!shuffle` / `b!clear` / `b!seek <seconds>`\n"
+        "`b!embedratings on|off` / `b!voicestatus on|off` / `b!radioinfo`\n"
         "`b!unrated on|off` - Allow or block missing listener ratings\n"
         "`b!loop [mode]` (Aliases: `b!lp`) - Toggle track/queue looping\n"
         "`b!pause` (Aliases: `b!pa`) - Pause the current song\n"
@@ -539,6 +601,7 @@ async def stop(ctx):
         await sync_playback.refresh(ctx.guild.id)
 
     await cleanup_player_message(ctx.guild.id)
+    await presentation.clear(ctx.guild.id)
     await ctx.send(embed=discord.Embed(description="Stopped the music and cleared the queue", color=EMBED_BG))
 
 @bot.command(name='np')
@@ -548,7 +611,10 @@ async def now_playing(ctx):
         return await ctx.send(embed=discord.Embed(description="Nothing is playing right now.", color=EMBED_BG))
 
     track = vc.current
-    embed = discord.Embed(description=f"Now playing **[{track.title}]({track.uri})**", color=EMBED_BG)
+    rows = await asyncio.to_thread(run_query, 'SELECT song_id, play_count FROM songs WHERE url=?', (track.uri,), True)
+    song_id, plays = rows[0] if rows else (None, 0)
+    settings = await asyncio.to_thread(read_settings, DB_NAME, ctx.guild.id)
+    embed = await asyncio.to_thread(presentation.build_embed, track, plays, song_id, settings['embed_ratings'])
     await ctx.send(embed=embed)
 
 @bot.command(aliases=['q'])
@@ -684,6 +750,7 @@ async def leave(ctx):
     if ctx.guild.id in veto_pool: veto_pool[ctx.guild.id].clear()
 
     await cleanup_player_message(ctx.guild.id)
+    await presentation.clear(ctx.guild.id)
     await sync_playback.leave(ctx.guild.id)
     if vc:
         await vc.disconnect()
@@ -698,6 +765,9 @@ async def radio(ctx):
     vc: wavelink.Player = ctx.voice_client
     if not vc: await ctx.message.author.voice.channel.connect(cls=functools.partial(wavelink.Player, nodes=[wavelink.Pool.get_node("primary")]))
 
+    vc = ctx.voice_client
+    vc.queue.mode = wavelink.QueueMode.normal
+    vc.queue.loaded = None
     played_history[ctx.guild.id] = set()
     unavailable_songs[ctx.guild.id] = {}
     last_radio_song.pop(ctx.guild.id, None)
@@ -829,6 +899,7 @@ async def sync_channels(ctx, *channels: discord.VoiceChannel):
         return await ctx.send("Use b!sync <channel ID> [second channel ID] to add up to two companions.")
     try:
         await sync_playback.join(ctx.guild.id, channels)
+        await presentation.refresh(ctx.guild.id)
     except (ValueError, discord.DiscordException, wavelink.WavelinkException) as exc:
         return await ctx.send(f"Could not link channels: {exc}")
     await ctx.send("Linked voice channels. Playback and the queue are controlled by the primary bot.")
@@ -836,8 +907,53 @@ async def sync_channels(ctx, *channels: discord.VoiceChannel):
 
 @bot.command()
 async def unsync(ctx):
+    await presentation.clear_statuses(ctx.guild.id)
     await sync_playback.leave(ctx.guild.id)
+    await presentation.refresh(ctx.guild.id)
     await ctx.send("Disconnected the companions. The primary bot keeps playing.")
+
+
+async def toggle_display(ctx, mode, setting, command):
+    if mode.lower() not in ('on', 'off'):
+        current = await asyncio.to_thread(read_settings, DB_NAME, ctx.guild.id)
+        return await ctx.send(f"{command}: {'on' if current[setting] else 'off'}. use b!{command} on|off.")
+    await asyncio.to_thread(write_settings, DB_NAME, ctx.guild.id, **{setting: mode.lower() == 'on'})
+    await presentation.refresh(ctx.guild.id)
+    await ctx.send(f"{command}: {mode.lower()}.")
+
+
+@bot.command()
+async def embedratings(ctx, mode: str = ''):
+    await toggle_display(ctx, mode, 'embed_ratings', 'embedratings')
+
+
+@bot.command()
+async def voicestatus(ctx, mode: str = ''):
+    await toggle_display(ctx, mode, 'voice_status', 'voicestatus')
+
+
+@bot.command()
+async def radioinfo(ctx):
+    listeners = sorted(sync_playback.listeners(ctx.guild.id))
+    settings = await asyncio.to_thread(read_settings, DB_NAME, ctx.guild.id)
+    if not listeners:
+        return await ctx.send('no active listeners. start playback first.')
+    songs, ratings, threshold, ignore_unrated = await asyncio.to_thread(load_radio_data, listeners, ctx.guild.id)
+    from radio import eligible
+    eligible_count = sum(eligible(ratings.get(song[0], {}), listeners, threshold, ignore_unrated) for song in songs)
+    thresholds = run_query('SELECT user_id, min_rating FROM user_thresholds', fetch=True) or []
+    limits = dict(thresholds)
+    lines = []
+    for uid in listeners:
+        member = ctx.guild.get_member(uid)
+        lines.append(f"{discord.utils.escape_markdown(member.name if member else str(uid))}: minimum {limits.get(uid, 0):g}")
+    lines.extend([f"active minimum: {threshold:g}", f"unrated: {'allowed' if settings['ignore_unrated'] else 'blocked'}",
+                  f"eligible songs: {eligible_count}/{len(songs)}",
+                  f"temporarily unavailable: {sum(expiry > time.monotonic() for expiry in unavailable_songs.get(ctx.guild.id, {}).values())}",
+                  f"recent track end: {recent_end_reasons.get(ctx.guild.id, 'none')}"])
+    if ctx.guild.id in recent_playback_errors:
+        lines.append('playback error recorded; check the bot terminal for the source error.')
+    await ctx.send(embed=discord.Embed(title='radio settings', description='\n'.join(lines), color=EMBED_BG))
 
 
 @bot.check
@@ -845,7 +961,7 @@ async def check_listener(ctx):
     if ctx.guild is None:
         return False
     controls = {'play', 'radio', 'skip', 'stop', 'leave', 'loop', 'pause', 'resume',
-                'remove', 'move', 'shuffle', 'clear', 'seek', 'unrated', 'sync', 'unsync'}
+                'remove', 'move', 'shuffle', 'clear', 'seek', 'unrated', 'sync', 'unsync', 'embedratings', 'voicestatus'}
     if ctx.command.name in controls:
         voice = ctx.author.voice
         if not voice or (ctx.voice_client and not sync_playback.contains(ctx.guild.id, voice.channel.id)):
@@ -869,9 +985,14 @@ async def on_command_error(ctx, error):
 async def main():
     async with bot:
         await sync_playback.start()
+        display_task = asyncio.create_task(presentation.maintain())
         try:
             await bot.start(TOKEN)
         finally:
+            display_task.cancel()
+            await asyncio.gather(display_task, return_exceptions=True)
+            for guild in bot.guilds:
+                await presentation.clear(guild.id)
             await sync_playback.close()
 
 

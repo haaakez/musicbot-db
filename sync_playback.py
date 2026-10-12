@@ -42,6 +42,7 @@ class SyncPlayback:
         self.groups = {}  # guild -> [(client, player)]
         self.locks = {}
         self.tasks = []
+        self.before_leave = None
 
     def listeners(self, guild_id):
         guild = self.primary.get_guild(guild_id)
@@ -88,6 +89,8 @@ class SyncPlayback:
 
     async def leave(self, guild_id):
         async with self.locks.setdefault(guild_id, asyncio.Lock()):
+            if self.before_leave:
+                await self.before_leave(guild_id)
             followers = self.groups.pop(guild_id, [])
             results = await asyncio.gather(*(player.disconnect() for _, player in followers), return_exceptions=True)
             for result in results:
