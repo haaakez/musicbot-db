@@ -142,6 +142,27 @@ RUSSIAN.update({
     'Title pending playback': 'название загрузится при воспроизведении',
 })
 
+RUSSIAN.update({
+    'Keep radio connected and retry': 'не отключать радио и повторять попытки',
+    'Playback status': 'статус воспроизведения',
+    'Checking connection…': 'проверка подключения…',
+    'Automatic backups': 'автоматические резервные копии',
+    'Backup every (hours)': 'интервал копирования (часы)',
+    'Checking backups…': 'проверка резервных копий…',
+    'Backups run automatically while the bot is running. Keeps the latest 28 by default. This setting applies to the whole database.': 'копии создаются автоматически, пока бот запущен. по умолчанию сохраняются последние 28. настройка действует на всю базу.',
+    'Backup interval must be between 1 and 168 hours.': 'интервал должен быть от 1 до 168 часов.',
+    'Similar links': 'похожие ссылки', 'New songs': 'новые треки', 'Date added': 'дата добавления',
+    'Links pointing to the same recording, including alternate YouTube URL formats and tracking parameters.': 'ссылки на одну запись, включая разные форматы youtube и параметры отслеживания.',
+    'Added in the last 7 days. Older entries without a recorded addition date are excluded.': 'добавлены за последние 7 дней. старые записи без даты добавления не показаны.',
+    'Bot offline or status outdated': 'бот не в сети или статус устарел',
+    'Discord': 'discord', 'Lavalink': 'lavalink', 'Voice': 'голосовой канал',
+    'Connected': 'подключён', 'Disconnected': 'отключён', 'Playing': 'играет', 'Paused': 'пауза',
+    'Listeners': 'слушатели', 'Nothing playing': 'ничего не играет', 'No listeners': 'нет слушателей',
+    'Waiting for eligible tracks': 'ожидание подходящих треков', 'Status unavailable': 'статус недоступен',
+    'Backup failed': 'ошибка резервного копирования', 'Last backup': 'последняя копия',
+    'Interval': 'интервал', 'hours': 'ч.', 'No automatic backup recorded yet': 'автоматических копий пока нет',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

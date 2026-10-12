@@ -139,7 +139,7 @@ b!play amsearch:artist title
 b!play <soundcloud, bandcamp, spotify or apple music link>
 ```
 
-soundcloud and bandcamp provide audio directly. spotify and apple music require their credentials in `.env`; lavasrc resolves their metadata through soundcloud, then youtube. youtube tries mweb and tvhtml5_simply before its other playback clients. ratings stay attached to the library song when another source is selected.
+soundcloud and bandcamp provide audio directly. spotify and apple music require their credentials in `.env`; lavasrc resolves their metadata through soundcloud, then youtube. youtube tries the patched ios client before mweb and tvhtml5_simply. ratings stay attached to the library song when another source is selected.
 
 youtube signature decoding uses the public yt-cipher service at `https://cipher.kikkia.dev/`. this is an external dependency; audio still streams through lavalink without downloading songs. set `YOUTUBE_CIPHER_URL` and, if needed, `YOUTUBE_CIPHER_PASSWORD` to use your own [yt-cipher instance](https://github.com/kikkia/yt-cipher). restart lavalink after changing these settings. the helper addresses player-script decoding failures; youtube login requirements can still prevent playback.
 
@@ -158,7 +158,7 @@ python backup_db.py
 python backup_db.py --directory /path/to/backups --keep 28
 ```
 
-set `DB_BACKUP_DIR`, `DB_BACKUP_HOURS`, and `DB_BACKUP_KEEP` in `.env` to change the automatic schedule. automatic backups run while the bot is running. keep a copy on another disk or machine to protect against disk failure.
+set the backup interval (1–168 hours) under “automatic backups” in the dashboard. changes apply within 30 seconds. `DB_BACKUP_HOURS` supplies the initial default; saved dashboard settings take precedence. `DB_BACKUP_DIR` and `DB_BACKUP_KEEP` in `.env` control destination and retention. automatic backups run while the bot is running. keep a copy on another disk or machine to protect against disk failure.
 
 ```bash
 # restore: stop the bot and dashboard first, then preserve the current database
@@ -177,3 +177,11 @@ PY
 now-playing messages show source, artwork when available, duration, play count, and requester details for manual requests. `b!embedratings on|off` or the dashboard setting controls the ratings section. the bot retains its latest three track messages per server during a run so earlier tracks can still be rated; -1 on an older track does not skip a different current song. messages from before a bot restart are not registered again.
 
 in the dashboard, a song can have only a link and no title. its title and artwork are filled from source metadata when playback starts. supplied titles are preserved. cover thumbnails appear beside song ids after artwork has been resolved.
+
+## dashboard status and radio
+
+“keep radio connected and retry” in bot settings keeps active radio connected when the channel is empty or no eligible songs remain. eligible songs already repeat after each cycle. while waiting, radio rechecks every 15 seconds and resumes when listeners return or ratings allow playback. source failures still keep their five-minute cooldown. explicit stop and leave commands remain available; this does not reconnect a bot that was forcibly disconnected.
+
+the dashboard shows discord, lavalink, and voice connection status, the current track, pause state, source, and listener count. status refreshes about every five seconds; a heartbeat older than 20 seconds is marked outdated.
+
+“similar links” finds entries pointing to the same recording, including youtube short/watch/embed links and common tracking variations. it does not compare audio across different uploads. “new songs” shows additions from the last seven days; date-added sorting is also available. timestamps are recorded for new entries; existing entries with unknown dates are excluded from the new-songs view.

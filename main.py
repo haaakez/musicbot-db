@@ -19,6 +19,9 @@ from preferences import setup_settings, read_settings, write_settings, register_
 from presentation import TrackPresentation
 from source_resolution import resolve_tracks
 from backup_db import maintain_backups
+from runtime_status import maintain_status
+
+from library_metadata import setup_metadata
 
 DB_NAME = "music_bot.db"
 
@@ -69,6 +72,7 @@ def setup_db():
         guild_id INTEGER PRIMARY KEY, ignore_unrated INTEGER NOT NULL DEFAULT 1
     )''')
     setup_users(conn)
+    setup_metadata(conn)
     setup_settings(conn)
     c.close()
     conn.commit()
@@ -101,6 +105,7 @@ sync_playback.before_leave = presentation.clear_followers
 now_playing_msgs = {}
 recent_track_messages = {}
 radio_active = {}
+radio_waiting = {}
 unavailable_songs = {}
 last_radio_song = {}
 played_history = {}
@@ -311,9 +316,15 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
         radio_active[guild_id] = False
         return
     user_ids = sorted(sync_playback.listeners(guild_id))
+    settings = await asyncio.to_thread(read_settings, DB_NAME, guild_id)
+    if not user_ids and settings['radio_always']:
+        radio_waiting[guild_id] = 'No listeners'
+        return
     if not user_ids:
         radio_active[guild_id] = False
         if guild.voice_client:
+            await presentation.clear(guild_id)
+            await sync_playback.leave(guild_id)
             await guild.voice_client.disconnect()
         return
     songs, ratings, threshold, ignore_unrated = await asyncio.to_thread(load_radio_data, user_ids, guild_id)
@@ -356,10 +367,17 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
                 if not await play_track(vc, vc.queue.get()):
                     return
             last_radio_song[guild_id] = song_id
+            radio_waiting.pop(guild_id, None)
             return
         except Exception as exc:
             failures[song_id] = time.monotonic() + 300
             print(f"Radio could not play song {song_id}: {exc}")
+    if settings['radio_always']:
+        radio_waiting[guild_id] = 'Waiting for eligible tracks'
+        await cleanup_player_message(guild_id)
+        await presentation.clear(guild_id)
+        return
+    radio_waiting.pop(guild_id, None)
     radio_active[guild_id] = False
     await cleanup_player_message(guild_id)
     await presentation.clear(guild_id)
@@ -402,6 +420,9 @@ async def on_voice_state_update(member, before, after):
             await asyncio.sleep(180)
             members = sync_playback.listeners(member.guild.id)
             if not members:
+                settings = await asyncio.to_thread(read_settings, DB_NAME, member.guild.id)
+                if settings['radio_always'] and radio_active.get(member.guild.id):
+                    return
                 guild = member.guild
                 channel = bound_channels.get(guild.id)
                 if channel:
@@ -1026,12 +1047,15 @@ async def main():
         await sync_playback.start()
         display_task = asyncio.create_task(presentation.maintain())
         backup_task = asyncio.create_task(maintain_backups(DB_NAME))
+        status_task = asyncio.create_task(maintain_status(bot, sync_playback, DB_NAME,
+            radio_active, radio_waiting, find_and_play_random_song))
         try:
             await bot.start(TOKEN)
         finally:
             display_task.cancel()
             backup_task.cancel()
-            await asyncio.gather(display_task, backup_task, return_exceptions=True)
+            status_task.cancel()
+            await asyncio.gather(display_task, backup_task, status_task, return_exceptions=True)
             for guild in bot.guilds:
                 await presentation.clear(guild.id)
             await sync_playback.close()

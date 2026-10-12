@@ -269,3 +269,70 @@ document.addEventListener('keydown', event => {
     filters.elements.q.select();
   }
 });
+
+const backupForm = document.getElementById('backup-settings');
+backupForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const feedback = document.getElementById('backup-settings-status');
+  const button = backupForm.querySelector('button');
+  const data = new FormData(backupForm);
+  button.disabled = true;
+  try {
+    await postForm(backupForm, data);
+    feedback.textContent = text('Saved');
+    feedback.classList.remove('error');
+  } catch (error) {
+    feedback.textContent = error.message;
+    feedback.classList.add('error');
+  } finally { button.disabled = false; }
+});
+
+const runtimePanel = document.querySelector('.runtime-panel');
+async function refreshRuntime() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const url = new URL(runtimePanel.dataset.statusUrl, window.location.href);
+    url.searchParams.set('guild_id', botSettingsForm?.elements.guild_id.value || '');
+    const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store', signal: controller.signal});
+    if (!response.ok) throw new Error('status unavailable');
+    const result = await response.json();
+    const connection = document.getElementById('connection-status');
+    const current = document.getElementById('current-track');
+    current.replaceChildren();
+    if (result.stale) {
+      connection.textContent = text('Bot offline or status outdated');
+      connection.classList.add('error');
+    } else {
+      const status = result.status;
+      connection.classList.toggle('error', !status.discord || !status.lavalink);
+      connection.textContent = `${text('Discord')}: ${text(status.discord ? 'Connected' : 'Disconnected')} · ` +
+        `${text('Lavalink')}: ${text(status.lavalink ? 'Connected' : 'Disconnected')} · ` +
+        `${text('Voice')}: ${status.voice ? status.channel : text('Disconnected')}`;
+      if (status.title) {
+        const label = document.createElement('span');
+        label.textContent = `${text(status.paused ? 'Paused' : 'Playing')}: `;
+        const title = document.createElement(/^https?:\/\//i.test(status.url || '') ? 'a' : 'span');
+        title.textContent = status.title;
+        if (title.tagName === 'A') { title.href = status.url; title.target = '_blank'; title.rel = 'noopener noreferrer'; }
+        current.append(label, title, document.createTextNode(` · ${status.source || ''} · ${text('Listeners')}: ${status.listeners}`));
+      } else {
+        current.textContent = text(status.waiting || 'Nothing playing');
+      }
+    }
+    const backup = result.backup;
+    document.getElementById('backup-status').textContent = backup.last_error
+      ? `${text('Backup failed')}: ${backup.last_error}`
+      : backup.last_success
+        ? `${text('Last backup')}: ${new Date(backup.last_success * 1000).toLocaleString()} · ${text('Interval')}: ${backup.interval_hours} ${text('hours')}`
+        : text('No automatic backup recorded yet');
+  } catch (_) {
+    document.getElementById('connection-status').textContent = text('Status unavailable');
+    document.getElementById('connection-status').classList.add('error');
+    document.getElementById('current-track').replaceChildren();
+  } finally {
+    clearTimeout(timeout);
+    setTimeout(refreshRuntime, 5000);
+  }
+}
+refreshRuntime();

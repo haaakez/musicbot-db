@@ -9,12 +9,16 @@ import math
 import secrets
 import hmac
 import time
+from datetime import datetime, timedelta, timezone
+from collections import Counter
 from urllib.parse import urlsplit
 from i18n import RUSSIAN, ENGLISH, translate
 from pathlib import Path
 from identities import setup_users
-from preferences import setup_settings, read_settings, write_settings
+from preferences import setup_settings, read_settings, write_settings, read_backup_settings
 from radio import eligible
+
+from library_metadata import setup_metadata, link_identity
 
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
@@ -83,6 +87,7 @@ def ensure_db_schema():
                 )''')
     
     setup_users(conn)
+    setup_metadata(conn)
     setup_settings(conn)
     conn.commit()
     conn.close()
@@ -365,12 +370,12 @@ def index():
     banned_filter = request.args.get('banned_filter', 'all')
     not_rated_by = request.args.get('not_rated_by', 'all')
     view = request.args.get('view', 'all')
-    if view not in ('all', 'everyone', 'missing', 'review'):
+    if view not in ('all', 'everyone', 'missing', 'review', 'similar', 'new'):
         view = 'all'
     sort = request.args.get('sort', 'relevance' if search_query else 'title')
-    if sort not in ('title', 'play_count', 'last_played', 'coverage', 'relevance'):
+    if sort not in ('title', 'play_count', 'last_played', 'coverage', 'relevance', 'added_at'):
         sort = 'title'
-    direction = request.args.get('direction', 'desc' if sort in ('play_count', 'last_played', 'coverage', 'relevance') else 'asc')
+    direction = request.args.get('direction', 'desc' if sort in ('play_count', 'last_played', 'coverage', 'relevance', 'added_at') else 'asc')
     direction = 'desc' if direction == 'desc' else 'asc'
     known_raters = get_known_raters()
     bot_guilds = query_db('SELECT guild_id, guild_name FROM guild_settings ORDER BY guild_name COLLATE NOCASE, guild_id')
@@ -393,7 +398,7 @@ def index():
                                   if value.isdecimal() and int(value) in names))
     ignore_unrated = request.args.get('ignore_unrated', 'on') == 'on'
     threshold = max((user_thresholds.get(uid, 0) for uid in listeners), default=0)
-    songs = query_db('SELECT song_id, title, url, play_count, last_played, artwork_url FROM songs')
+    songs = query_db('SELECT song_id, title, url, play_count, last_played, artwork_url, added_at FROM songs')
     song_ids = [row['song_id'] for row in songs]
     rating_summary = get_rating_summary(song_ids)
     ratings_matrix = get_ratings_matrix(song_ids, known_raters)
@@ -403,7 +408,13 @@ def index():
     missing_id = int(missing_id) if missing_id.isdecimal() else None
     relevance = {}
     filtered = []
+    link_counts = Counter(link_identity(song['url']) for song in songs if song['url'])
+    recent_since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
     for song in songs:
+        if view == 'similar' and (not song['url'] or link_counts[link_identity(song['url'])] < 2):
+            continue
+        if view == 'new' and (not song['added_at'] or song['added_at'] < recent_since):
+            continue
         sid = song['song_id']
         scores = ratings_matrix.get(sid, {})
         summary = rating_summary.get(sid, {'avg_score': None, 'count': 0, 'rated_count': 0})
@@ -467,7 +478,8 @@ def index():
         user_thresholds=user_thresholds, rating_summary=rating_summary, ratings_matrix=ratings_matrix,
         library_total=library_total, progress=progress, listeners=listeners, ignore_unrated=ignore_unrated,
         threshold=threshold, previews=previews, dashboard_data=dashboard_data,
-        bot_guilds=bot_guilds, selected_guild=selected_guild, bot_settings=bot_settings)
+        bot_guilds=bot_guilds, selected_guild=selected_guild, bot_settings=bot_settings,
+        backup_settings=read_backup_settings(DB_NAME))
 
 
 @app.route('/bot_settings', methods=['GET', 'POST'])
@@ -481,7 +493,7 @@ def bot_settings_route():
         return rating_error('Server not found.', 404)
     if request.method == 'POST':
         values = {}
-        for name in ('embed_ratings', 'voice_status', 'ignore_unrated'):
+        for name in ('embed_ratings', 'voice_status', 'ignore_unrated', 'radio_always'):
             value = request.form.get(name)
             if value not in ('on', 'off'):
                 return rating_error('Choose on or off for each setting.', 400)
@@ -490,6 +502,33 @@ def bot_settings_route():
         if not wants_json():
             return back_to_library()
     return jsonify(guild_id=str(guild_id), settings=read_settings(DB_NAME, guild_id))
+
+
+@app.route('/runtime_status')
+@login_required
+def runtime_status_route():
+    guild_id = request.args.get('guild_id', '')
+    row = query_db('SELECT updated_at, payload FROM bot_runtime WHERE guild_id=?', (guild_id,), one=True)
+    response = jsonify(stale=not row or time.time() - row['updated_at'] > 20,
+                       status=json.loads(row['payload']) if row else None,
+                       backup=read_backup_settings(DB_NAME))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@app.route('/backup_settings', methods=['POST'])
+@login_required
+def backup_settings_route():
+    try:
+        hours = float(request.form.get('interval_hours', ''))
+    except ValueError:
+        return rating_error('Backup interval must be between 1 and 168 hours.', 400)
+    if not math.isfinite(hours) or not 1 <= hours <= 168:
+        return rating_error('Backup interval must be between 1 and 168 hours.', 400)
+    execute_db('UPDATE backup_settings SET interval_hours=? WHERE id=1', (hours,))
+    if wants_json():
+        return jsonify(settings=read_backup_settings(DB_NAME))
+    return back_to_library()
 
 
 @app.route('/refresh_usernames', methods=['POST'])

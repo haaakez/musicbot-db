@@ -194,3 +194,6 @@ td.my-rating { background: #26313a; }
 .song-id { min-width: 66px; }
 .song-id-content { display: flex; align-items: center; gap: 7px; }
 .track-cover { display: block; flex: 0 0 40px; width: 40px; height: 40px; object-fit: cover; background: var(--raised); }
+.runtime-panel { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 7px 8px; margin-bottom: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; }
+#current-track { flex-basis: 100%; overflow-wrap: anywhere; }
+#backup-settings input[type=number] { width: 95px; }

@@ -52,16 +52,32 @@ def backup_database(database='music_bot.db', directory='backups', keep=28):
 
 
 async def maintain_backups(database):
-    interval = max(1, float(os.environ.get('DB_BACKUP_HOURS', '6'))) * 3600
+    from preferences import read_backup_settings
     directory = os.environ.get('DB_BACKUP_DIR', 'backups')
     keep = max(1, int(os.environ.get('DB_BACKUP_KEEP', '28')))
+    startup = True
+    retry_after = 0
     while True:
         try:
-            path = await asyncio.to_thread(backup_database, database, directory, keep)
-            print(f'database backup saved: {path}')
-        except Exception:
+            settings = await asyncio.to_thread(read_backup_settings, database)
+            due = startup or time.time() - (settings['last_success'] or 0) >= settings['interval_hours'] * 3600
+            if due and time.time() >= retry_after:
+                path = await asyncio.to_thread(backup_database, database, directory, keep)
+                with closing(sqlite3.connect(database, timeout=30)) as conn:
+                    conn.execute('UPDATE backup_settings SET last_success=?, last_error=NULL WHERE id=1', (time.time(),))
+                    conn.commit()
+                startup = False
+                print(f'database backup saved: {path}')
+        except Exception as error:
+            retry_after = time.time() + 300
             log.exception('Database backup failed; playback will continue')
-        await asyncio.sleep(interval)
+            try:
+                with closing(sqlite3.connect(database, timeout=30)) as conn:
+                    conn.execute('UPDATE backup_settings SET last_error=? WHERE id=1', (str(error)[:500],))
+                    conn.commit()
+            except sqlite3.Error:
+                log.exception('Could not record backup failure')
+        await asyncio.sleep(30)
 
 
 if __name__ == '__main__':

@@ -22,6 +22,11 @@
         <a class="button secondary" href="{{ url_for('logout') }}">{{ t('Logout') }}</a>
       </div>
     </header>
+    <section class="runtime-panel" aria-label="{{ t('Playback status') }}" data-status-url="{{ url_for('runtime_status_route') }}">
+      <strong>{{ t('Playback status') }}</strong>
+      <span id="connection-status" role="status">{{ t('Checking connection…') }}</span>
+      <span id="current-track"></span>
+    </section>
     <section class="progress-list" aria-label="{{ t('Rating progress') }}">
       {% for rater in known_raters %}
         {% set count = progress.get(rater.user_id|string, 0) %}
@@ -46,7 +51,7 @@
                 {% for guild in bot_guilds %}<option value="{{ guild.guild_id }}" {% if guild.guild_id|string == selected_guild %}selected{% endif %}>{{ guild.guild_name or guild.guild_id }}</option>{% endfor %}
               </select>
             </label>
-            {% for name, label in [('embed_ratings', 'Ratings in embed'), ('voice_status', 'Track in voice status'), ('ignore_unrated', 'Allow unrated in radio')] %}
+            {% for name, label in [('embed_ratings', 'Ratings in embed'), ('voice_status', 'Track in voice status'), ('ignore_unrated', 'Allow unrated in radio'), ('radio_always', 'Keep radio connected and retry')] %}
               <label>{{ t(label) }}
                 <select name="{{ name }}" aria-label="{{ t(label) }}">
                   <option value="on" {% if bot_settings[name] %}selected{% endif %}>{{ t('On') }}</option>
@@ -61,9 +66,20 @@
         </form>
       {% else %}<p class="hint">{{ t('Start the bot to register your server here.') }}</p>{% endif %}
     </details>
+    <details class="listening-controls">
+      <summary>{{ t('Automatic backups') }}</summary>
+      <form id="backup-settings" class="listener-options" action="{{ url_for('backup_settings_route') }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>{{ t('Backup every (hours)') }} <input type="number" name="interval_hours" min="1" max="168" step="0.5" value="{{ backup_settings.interval_hours }}" required></label>
+        <button type="submit">{{ t('Save') }}</button>
+        <span id="backup-settings-status" class="hint" role="status"></span>
+      </form>
+      <p id="backup-status" class="hint">{{ t('Checking backups…') }}</p>
+      <p class="hint">{{ t('Backups run automatically while the bot is running. Keeps the latest 28 by default. This setting applies to the whole database.') }}</p>
+    </details>
     <form id="filters" method="get" action="{{ url_for('index') }}">
       <nav class="view-shortcuts" hidden aria-label="{{ t('Library view') }}">
-        {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review')] %}
+        {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review'), ('similar', 'Similar links'), ('new', 'New songs')] %}
           <button type="button" data-view="{{ value }}" aria-pressed="{{ 'true' if view == value else 'false' }}">{{ t(label) }}</button>
         {% endfor %}
       </nav>
@@ -71,7 +87,7 @@
         <input type="text" name="q" aria-label="{{ t('Search songs') }}" placeholder="{{ t('Search songs…') }}" value="{{ search_query }}">
         <label id="view-select-label">{{ t('View') }}
           <select name="view" aria-label="{{ t('Library view') }}">
-            {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review')] %}
+            {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review'), ('similar', 'Similar links'), ('new', 'New songs')] %}
               <option value="{{ value }}" {% if view == value %}selected{% endif %}>{{ t(label) }}</option>
             {% endfor %}
           </select>
@@ -109,7 +125,7 @@
         </select>
         <label>{{ t('Sort') }}
           <select name="sort" aria-label="{{ t('Sort songs') }}">
-            {% for value, label in [('title', 'Title'), ('play_count', 'Plays'), ('last_played', 'Last played'), ('coverage', 'Rating coverage'), ('relevance', 'Search relevance')] %}
+            {% for value, label in [('title', 'Title'), ('play_count', 'Plays'), ('last_played', 'Last played'), ('coverage', 'Rating coverage'), ('relevance', 'Search relevance'), ('added_at', 'Date added')] %}
               <option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ t(label) }}</option>
             {% endfor %}
           </select>
@@ -142,6 +158,8 @@
     {% if view == 'missing' and viewer is none %}<p class="hint">{{ t('Choose your name under “Me” and apply to see your unrated songs.') }}</p>{% endif %}
     {% if view == 'everyone' %}<p class="hint">{{ t('Everyone must have rated the song 2 or 3. Vetoes and missing ratings are excluded.') }}</p>{% endif %}
     {% if view == 'review' %}<p class="hint">{{ t('Missing ratings, ratings differing by 2 or more, or songs without a resolved link.') }}</p>{% endif %}
+    {% if view == 'similar' %}<p class="hint">{{ t('Links pointing to the same recording, including alternate YouTube URL formats and tracking parameters.') }}</p>{% endif %}
+    {% if view == 'new' %}<p class="hint">{{ t('Added in the last 7 days. Older entries without a recorded addition date are excluded.') }}</p>{% endif %}
     <p class="library-summary">{{ t('{total} songs matching · Page {page} of {pages}', total=total, page=page, pages=pages) }}
       {% if page > 1 %}<a class="page-link" href="{{ page_url(page - 1) }}">{{ t('Previous') }}</a>{% endif %}
       {% if page < pages %}<a class="page-link" href="{{ page_url(page + 1) }}">{{ t('Next') }}</a>{% endif %}
