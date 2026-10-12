@@ -136,6 +136,12 @@ RUSSIAN.update({
     'Songs and ratings': 'треки и оценки',
 })
 
+RUSSIAN.update({
+    'Enter a title or link.': 'укажите название или ссылку.',
+    'Enter a title or link. Link-only titles are fetched when playback starts.': 'укажите название или ссылку. если указана только ссылка, название загрузится при начале воспроизведения.',
+    'Title pending playback': 'название загрузится при воспроизведении',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

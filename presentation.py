@@ -25,10 +25,27 @@ class TrackPresentation:
 
     def build_embed(self, track, plays, song_id, show_ratings):
         title = discord.utils.escape_markdown(track.title[:300])
-        description = f'playing **[{title}]({track.uri})**' if track.uri else f'playing **{title}**'
-        embed = discord.Embed(description=description, color=0x2b2d31)
-        duration = str(datetime.timedelta(milliseconds=track.length)) if track.length else 'unknown'
-        embed.set_footer(text=f'length: {duration} · plays: {plays}')
+        embed = discord.Embed(color=0x2b2d31)
+        source = getattr(track, 'source', '') or 'music'
+        embed.set_author(name=f'{source} · started playing')
+        playing = f'**[{title}]({track.uri})**' if track.uri else f'**{title}**'
+        embed.add_field(name='playing', value=playing, inline=False)
+        if track.artwork:
+            embed.set_thumbnail(url=track.artwork)
+        seconds = max(0, int(track.length or 0) // 1000)
+        hours, remainder = divmod(seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        duration = 'live' if track.is_stream else (f'{hours}:{minutes:02}:{seconds:02}' if hours else f'{minutes:02}:{seconds:02}')
+        embed.add_field(name='length', value=duration if track.length or track.is_stream else 'unknown', inline=True)
+        embed.add_field(name='plays', value=str(plays), inline=True)
+        requester = getattr(track.extras, 'requester_name', None)
+        if requester:
+            embed.set_footer(text=f'requested by {requester}', icon_url=getattr(track.extras, 'requester_avatar', None))
+        else:
+            embed.set_footer(text='radio')
+        started = getattr(track.extras, 'started_at', None)
+        if started:
+            embed.timestamp = datetime.datetime.fromisoformat(started)
         if show_ratings and song_id is not None:
             with sqlite3.connect(self.db_name, timeout=30) as conn:
                 rows = conn.execute('''SELECT u.user_id, u.username, r.score FROM users u

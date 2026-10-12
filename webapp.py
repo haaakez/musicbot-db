@@ -54,6 +54,8 @@ def ensure_db_schema():
                 )''')
     c.execute('PRAGMA table_info(songs)')
     song_columns = [row[1] for row in c.fetchall()]
+    if 'artwork_url' not in song_columns:
+        c.execute('ALTER TABLE songs ADD COLUMN artwork_url TEXT')
     if 'play_count' not in song_columns:
         c.execute('ALTER TABLE songs ADD COLUMN play_count INTEGER DEFAULT 0')
     if 'last_played' not in song_columns:
@@ -391,7 +393,7 @@ def index():
                                   if value.isdecimal() and int(value) in names))
     ignore_unrated = request.args.get('ignore_unrated', 'on') == 'on'
     threshold = max((user_thresholds.get(uid, 0) for uid in listeners), default=0)
-    songs = query_db('SELECT song_id, title, url, play_count, last_played FROM songs')
+    songs = query_db('SELECT song_id, title, url, play_count, last_played, artwork_url FROM songs')
     song_ids = [row['song_id'] for row in songs]
     rating_summary = get_rating_summary(song_ids)
     ratings_matrix = get_ratings_matrix(song_ids, known_raters)
@@ -570,9 +572,10 @@ def add_song():
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         url = request.form.get('url', '').strip() or None
-        if title:
-            execute_db('INSERT INTO songs (title, url, play_count, last_played) VALUES (?, ?, 0, NULL)', (title, url))
+        if title or url:
+            execute_db('INSERT INTO songs (title, url, play_count, last_played) VALUES (?, ?, 0, NULL)', (title or None, url))
             return redirect(url_for('index'))
+        abort(400, t('Enter a title or link.'))
     return render_template('song_form.html', song=None, action='Add')
 
 
@@ -586,8 +589,10 @@ def edit_song(song_id):
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         url = request.form.get('url', '').strip() or None
+        if not title and not url:
+            abort(400, t('Enter a title or link.'))
         play_count = int(request.form.get('play_count', song['play_count'] or 0))
-        execute_db('UPDATE songs SET title = ?, url = ?, play_count = ? WHERE song_id = ?', (title, url, play_count, song_id))
+        execute_db('UPDATE songs SET title = ?, url = ?, play_count = ? WHERE song_id = ?', (title or None, url, play_count, song_id))
         return redirect(url_for('index'))
 
     return render_template('song_form.html', song=song, action='Edit')

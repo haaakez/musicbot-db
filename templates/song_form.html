@@ -15,8 +15,9 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
       <label for="title">{{ t('Title') }}</label>
-      <input type="text" id="title" name="title" required value="{{ song.title if song else '' }}">
+      <input type="text" id="title" name="title" value="{{ (song.title or '') if song else '' }}">
 
+      <p class="hint">{{ t('Enter a title or link. Link-only titles are fetched when playback starts.') }}</p>
       <label for="url">{{ t('URL (optional)') }}</label>
       <input type="url" id="url" name="url" value="{{ song.url if song else '' }}">
 

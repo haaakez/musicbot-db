@@ -40,6 +40,8 @@ def setup_db():
 
     c.execute("PRAGMA table_info(songs)")
     columns = [info[1] for info in c.fetchall()]
+    if 'artwork_url' not in columns:
+        c.execute('ALTER TABLE songs ADD COLUMN artwork_url TEXT')
     if 'play_count' not in columns:
         c.execute("ALTER TABLE songs ADD COLUMN play_count INTEGER DEFAULT 0")
     if 'last_played' not in columns:
@@ -97,6 +99,7 @@ presentation = TrackPresentation(bot, sync_playback, DB_NAME)
 sync_playback.before_leave = presentation.clear_followers
 
 now_playing_msgs = {}
+recent_track_messages = {}
 radio_active = {}
 unavailable_songs = {}
 last_radio_song = {}
@@ -190,6 +193,7 @@ def resolve_search_query(query):
 async def play_track(player, track):
     if not player.connected:
         return False
+    track.extras = {**dict(track.extras), 'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
     await player.play(track, filters=NormalizedFilters())
     return True
 
@@ -235,7 +239,10 @@ class RatingView(View):
 
         label = f"rated {score}"
 
-        if score == -1 and interaction.guild.voice_client and interaction.user.voice and sync_playback.contains(interaction.guild.id, interaction.user.voice.channel.id):
+        if (score == -1 and interaction.guild.voice_client and interaction.user.voice
+                and sync_playback.contains(interaction.guild.id, interaction.user.voice.channel.id)
+                and interaction.guild.voice_client.current
+                and getattr(interaction.guild.voice_client.current.extras, 'song_id', None) == self.song_id):
             await interaction.response.send_message(embed=discord.Embed(description=f"you rated **{self.title}** -1. skipping…", color=EMBED_RED), ephemeral=False)
             vc: wavelink.Player = interaction.guild.voice_client
             if vc:
@@ -268,10 +275,8 @@ def create_embed(track: wavelink.Playable, play_count: int = None):
     return embed
 
 async def cleanup_player_message(guild_id):
-    if guild_id in now_playing_msgs:
-        try: await now_playing_msgs[guild_id].delete()
-        except: pass
-        del now_playing_msgs[guild_id]
+    # Retain recent track messages so their rating buttons remain usable.
+    now_playing_msgs.pop(guild_id, None)
     presentation.messages.pop(guild_id, None)
     presentation.fingerprints.pop(guild_id, None)
 
@@ -431,15 +436,20 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     if existing_id:
         current_play_count = (existing_id[0][1] or 0) + 1
         song_id = existing_id[0][0]
-        run_query("UPDATE songs SET play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
-                  (current_play_count, song_id))
+        run_query("""UPDATE songs SET
+                    title = CASE WHEN title IS NULL OR TRIM(title) = '' OR title = url THEN ? ELSE title END,
+                    artwork_url = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?""",
+                  (track.title, track.artwork, current_play_count, song_id))
     else:
         manual_match = run_query("SELECT song_id, play_count FROM songs WHERE LOWER(title) = ? AND url IS NULL LIMIT 1", (track.title.lower(),), fetch=True)
         if manual_match:
             current_play_count = (manual_match[0][1] or 0) + 1
             song_id = manual_match[0][0]
-            run_query("UPDATE songs SET url = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
-                      (track.uri, current_play_count, song_id))
+            run_query("UPDATE songs SET url = ?, artwork_url = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
+                      (track.uri, track.artwork, current_play_count, song_id))
+
+    if song_id is not None:
+        track.extras = {**dict(track.extras), 'song_id': song_id}
 
     if channel:
         await cleanup_player_message(guild_id)
@@ -452,6 +462,16 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
         else:
             msg = await channel.send(embed=embed)
 
+        history = recent_track_messages.setdefault(guild_id, [])
+        history.append(msg)
+        while len(history) > 3:
+            old = history.pop(0)
+            try:
+                await old.delete()
+            except discord.NotFound:
+                pass
+            except discord.HTTPException as error:
+                print(f'could not delete old track message {old.id}: {error}')
         now_playing_msgs[guild_id] = msg
         presentation.remember(guild_id, msg, track, song_id, current_play_count, embed)
     await presentation.refresh(guild_id)
@@ -585,6 +605,9 @@ async def play(ctx, *, search: str):
         return await ctx.send(embed=discord.Embed(description=f"Error searching for track: {e}", color=EMBED_RED))
 
     items = tracks.tracks if isinstance(tracks, wavelink.Playlist) else [tracks[0]]
+    for item in items:
+        item.extras = {**dict(item.extras), 'requester_name': ctx.author.display_name,
+                       'requester_avatar': str(ctx.author.display_avatar.url)}
     track = items[0]
     async with selection_locks.setdefault(ctx.guild.id, asyncio.Lock()):
         await vc.queue.put_wait(items)

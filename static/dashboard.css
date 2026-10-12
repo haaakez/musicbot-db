@@ -191,3 +191,5 @@ th.my-rating { color: var(--text); background: #293b49; }
 td.my-rating { background: #26313a; }
 .table-wrap { max-height: 72vh; }
 .song-title { line-height: 1.4; }
+.song-id { min-width: 66px; }
+.track-cover { display: block; width: 40px; height: 40px; object-fit: cover; margin-bottom: 2px; background: var(--raised); }

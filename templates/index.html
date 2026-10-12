@@ -188,8 +188,8 @@
           {% for song in songs %}
             {% set summary = rating_summary.get(song.song_id, {}) %}
             <tr data-song-id="{{ song.song_id }}">
-              <td>{{ song.song_id }}</td>
-              <td class="song-title">{{ song.title }}</td>
+              <td class="song-id">{% if song.artwork_url %}<img class="track-cover" src="{{ song.artwork_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">{% endif %}<span>{{ song.song_id }}</span></td>
+              <td class="song-title">{{ song.title or t('Title pending playback') }}</td>
               <td>{% if song.url %}<a href="{{ song.url }}" target="_blank" rel="noopener noreferrer">{{ t('Link') }}</a>{% else %}<span class="hint">{{ t('Unresolved') }}</span>{% endif %}</td>
               <td>{{ song.play_count or 0 }}</td>
               <td>{{ song.last_played or '—' }}</td>

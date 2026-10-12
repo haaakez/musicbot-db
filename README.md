@@ -173,3 +173,7 @@ with closing(sqlite3.connect('file:backups/music_bot-YYYYMMDDTHHMMSSffffffZ.sqli
 PY
 # restart the bot and dashboard
 ```
+
+now-playing messages show source, artwork when available, duration, play count, and requester details for manual requests. `b!embedratings on|off` or the dashboard setting controls the ratings section. the bot retains its latest three track messages per server during a run so earlier tracks can still be rated; -1 on an older track does not skip a different current song. messages from before a bot restart are not registered again.
+
+in the dashboard, a song can have only a link and no title. its title and artwork are filled from source metadata when playback starts. supplied titles are preserved. cover thumbnails appear beside song ids after artwork has been resolved.
