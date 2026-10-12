@@ -34,6 +34,33 @@
         <p>{{ t('No raters yet. Rate a song in Discord to add your name here.') }}</p>
       {% endfor %}
     </section>
+    <details class="listening-controls bot-settings">
+      <summary>{{ t('Bot settings') }}</summary>
+      {% if bot_guilds %}
+        <form id="bot-settings" action="{{ url_for('bot_settings_route') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
+          <div class="listener-options">
+            <label>{{ t('Server') }}
+              <select name="guild_id" aria-label="{{ t('Server') }}">
+                {% for guild in bot_guilds %}<option value="{{ guild.guild_id }}" {% if guild.guild_id|string == selected_guild %}selected{% endif %}>{{ guild.guild_name or guild.guild_id }}</option>{% endfor %}
+              </select>
+            </label>
+            {% for name, label in [('embed_ratings', 'Ratings in embed'), ('voice_status', 'Track in voice status'), ('ignore_unrated', 'Allow unrated in radio')] %}
+              <label>{{ t(label) }}
+                <select name="{{ name }}" aria-label="{{ t(label) }}">
+                  <option value="on" {% if bot_settings[name] %}selected{% endif %}>{{ t('On') }}</option>
+                  <option value="off" {% if not bot_settings[name] %}selected{% endif %}>{{ t('Off') }}</option>
+                </select>
+              </label>
+            {% endfor %}
+            <button type="submit">{{ t('Save') }}</button>
+            <span id="bot-settings-status" class="hint" role="status"></span>
+          </div>
+          <p class="hint">{{ t('These settings control the bot. Display changes apply within five seconds.') }} {{ t('Voice status needs the Set Voice Channel Status permission.') }}</p>
+        </form>
+      {% else %}<p class="hint">{{ t('Start the bot to register your server here.') }}</p>{% endif %}
+    </details>
     <form id="filters" method="get" action="{{ url_for('index') }}">
       <div class="toolbar">
         <input type="text" name="q" aria-label="{{ t('Search songs') }}" placeholder="{{ t('Search songs…') }}" value="{{ search_query }}">

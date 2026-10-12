@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from i18n import RUSSIAN, ENGLISH, translate
 from pathlib import Path
 from identities import setup_users
+from preferences import setup_settings, read_settings, write_settings
 from radio import eligible
 
 DB_NAME = 'music_bot.db'
@@ -80,6 +81,7 @@ def ensure_db_schema():
                 )''')
     
     setup_users(conn)
+    setup_settings(conn)
     conn.commit()
     conn.close()
 
@@ -369,6 +371,12 @@ def index():
     direction = request.args.get('direction', 'desc' if sort in ('play_count', 'last_played', 'coverage', 'relevance') else 'asc')
     direction = 'desc' if direction == 'desc' else 'asc'
     known_raters = get_known_raters()
+    bot_guilds = query_db('SELECT guild_id, guild_name FROM guild_settings ORDER BY guild_name COLLATE NOCASE, guild_id')
+    selected_guild = request.args.get('settings_guild', '')
+    guild_ids = {str(row['guild_id']) for row in bot_guilds}
+    if selected_guild not in guild_ids:
+        selected_guild = str(bot_guilds[0]['guild_id']) if bot_guilds else None
+    bot_settings = read_settings(DB_NAME, int(selected_guild)) if selected_guild else None
     names = {r['user_id']: r['display'] for r in known_raters}
     user_thresholds = get_user_thresholds()
     viewer = request.args.get('viewer', session.get('viewer', ''))
@@ -456,7 +464,30 @@ def index():
         view=view, viewer=viewer, sort=sort, direction=direction, known_raters=known_raters,
         user_thresholds=user_thresholds, rating_summary=rating_summary, ratings_matrix=ratings_matrix,
         library_total=library_total, progress=progress, listeners=listeners, ignore_unrated=ignore_unrated,
-        threshold=threshold, previews=previews, dashboard_data=dashboard_data)
+        threshold=threshold, previews=previews, dashboard_data=dashboard_data,
+        bot_guilds=bot_guilds, selected_guild=selected_guild, bot_settings=bot_settings)
+
+
+@app.route('/bot_settings', methods=['GET', 'POST'])
+@login_required
+def bot_settings_route():
+    guild_id = request.values.get('guild_id', '')
+    if not guild_id.isdecimal() or len(guild_id) > 19 or not 0 < int(guild_id) <= 9223372036854775807:
+        return rating_error('Server not found.', 404)
+    guild_id = int(guild_id)
+    if not query_db('SELECT guild_id FROM guild_settings WHERE guild_id=?', (guild_id,), one=True):
+        return rating_error('Server not found.', 404)
+    if request.method == 'POST':
+        values = {}
+        for name in ('embed_ratings', 'voice_status', 'ignore_unrated'):
+            value = request.form.get(name)
+            if value not in ('on', 'off'):
+                return rating_error('Choose on or off for each setting.', 400)
+            values[name] = value == 'on'
+        write_settings(DB_NAME, guild_id, **values)
+        if not wants_json():
+            return back_to_library()
+    return jsonify(guild_id=str(guild_id), settings=read_settings(DB_NAME, guild_id))
 
 
 @app.route('/refresh_usernames', methods=['POST'])

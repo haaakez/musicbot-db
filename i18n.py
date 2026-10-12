@@ -128,6 +128,20 @@ RUSSIAN = {
     'Back to list': 'к библиотеке',
 }
 
+RUSSIAN.update({
+    'Bot settings': 'настройки бота',
+    'Server': 'сервер',
+    'Ratings in embed': 'оценки в сообщении о треке',
+    'Track in voice status': 'трек в статусе голосового канала',
+    'Allow unrated in radio': 'разрешить треки без оценок в радио',
+    'On': 'вкл', 'Off': 'выкл',
+    'These settings control the bot. Display changes apply within five seconds.': 'эти настройки управляют ботом. отображение обновляется в течение пяти секунд.',
+    'Start the bot to register your server here.': 'запустите бота, чтобы здесь появился сервер.',
+    'Server not found.': 'сервер не найден.',
+    'Voice status needs the Set Voice Channel Status permission.': 'для статуса нужно разрешение «задавать статус голосового канала».',
+    'Choose on or off for each setting.': 'для каждой настройки выберите вкл или выкл.',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music Bot Database': 'dashboard',

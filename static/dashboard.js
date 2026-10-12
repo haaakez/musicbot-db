@@ -232,3 +232,46 @@ document.getElementById('delete-view').addEventListener('click', () => {
 });
 renderSavedViews();
 updatePreviews();
+
+const botSettingsForm = document.getElementById('bot-settings');
+if (botSettingsForm) {
+  const feedback = document.getElementById('bot-settings-status');
+  const controls = [...botSettingsForm.querySelectorAll('select, button')];
+  function busy(value) { controls.forEach(control => { control.disabled = value; }); }
+  botSettingsForm.elements.guild_id.addEventListener('change', async () => {
+    const url = new URL(botSettingsForm.action);
+    url.searchParams.set('guild_id', botSettingsForm.elements.guild_id.value);
+    busy(true);
+    try {
+      const response = await fetch(url, {headers: {Accept: 'application/json'}, credentials: 'same-origin'});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || text('Could not save. Try again.'));
+      for (const [name, value] of Object.entries(result.settings)) botSettingsForm.elements[name].value = value ? 'on' : 'off';
+      feedback.textContent = '';
+      feedback.classList.remove('error');
+      delete botSettingsForm.querySelector('button').dataset.loadFailed;
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.classList.add('error');
+      // A failed server switch must not leave another server's settings ready to save.
+      botSettingsForm.querySelector('button').dataset.loadFailed = 'true';
+    } finally {
+      busy(false);
+      if (botSettingsForm.querySelector('button').dataset.loadFailed === 'true') botSettingsForm.querySelector('button').disabled = true;
+    }
+  });
+  botSettingsForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const data = new FormData(botSettingsForm);
+    busy(true);
+    feedback.textContent = text('Saving…');
+    try {
+      await postForm(botSettingsForm, data);
+      feedback.textContent = text('Saved');
+      feedback.classList.remove('error');
+    } catch (error) {
+      feedback.textContent = error.message;
+      feedback.classList.add('error');
+    } finally { busy(false); }
+  });
+}
