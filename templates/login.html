@@ -1,28 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ language }}">
   <head>
     <meta charset="utf-8">
-    <title>Login - Music Bot Admin</title>
+    <title>{{ t('Login - Music Bot Admin') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preload" href="{{ url_for('static', filename='fonts/JetBrainsMono-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
   </head>
   <body class="auth">
     <div class="card">
-      <h1>Admin Login</h1>
+      {% include "_language.html" %}
+      <h1>{{ t('Admin Login') }}</h1>
       {% if error %}
       <p class="error">{{ error }}</p>
       {% endif %}
       <form method="post">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
-        <label for="username">Username</label>
+        <label for="username">{{ t('Username') }}</label>
         <input id="username" name="username" type="text" required autofocus>
-        <label for="password">Password</label>
+        <label for="password">{{ t('Password') }}</label>
         <input id="password" name="password" type="password" required>
-        <button type="submit">Sign in</button>
+        <button type="submit">{{ t('Sign in') }}</button>
       </form>
-      <p class="hint">Set ADMIN_USERNAME and ADMIN_PASSWORD in your environment or use the defaults.</p>
+      <p class="hint">{{ t('Set ADMIN_USERNAME and ADMIN_PASSWORD in your environment or use the defaults.') }}</p>
     </div>
   </body>
 </html>

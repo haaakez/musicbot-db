@@ -1,123 +1,200 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ language }}">
   <head>
     <meta charset="utf-8">
-    <title>Music Bot Database</title>
+    <title>{{ t('Music library') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preload" href="{{ url_for('static', filename='fonts/JetBrainsMono-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
   </head>
   <body class="dashboard">
-    <h1>Music Bot Database</h1>
-    <div class="toolbar">
-      <form method="get" action="{{ url_for('index') }}">
-        <input type="text" name="q" aria-label="Search songs" placeholder="Search songs..." value="{{ search_query }}">
-        <select aria-label="Average rating" name="avg_filter">
-          <option value="all" {% if avg_filter == 'all' %}selected{% endif %}>avg: all</option>
-          <option value=">=1" {% if avg_filter == '>=1' %}selected{% endif %}>>= 1</option>
-          <option value=">=2" {% if avg_filter == '>=2' %}selected{% endif %}>>= 2</option>
-          <option value=">=3" {% if avg_filter == '>=3' %}selected{% endif %}>>= 3</option>
-          <option value="=1" {% if avg_filter == '=1' %}selected{% endif %}>= 1</option>
-          <option value="=2" {% if avg_filter == '=2' %}selected{% endif %}>= 2</option>
-          <option value="=3" {% if avg_filter == '=3' %}selected{% endif %}>= 3</option>
-        </select>
-        <select aria-label="Veto filter" name="banned_filter">
-          <option value="all" {% if banned_filter == 'all' %}selected{% endif %}>banned: all</option>
-          <option value="banned" {% if banned_filter == 'banned' %}selected{% endif %}>banned only</option>
-          <option value="not_banned" {% if banned_filter == 'not_banned' %}selected{% endif %}>exclude banned</option>
-        </select>
-        <select aria-label="Unrated by person" name="not_rated_by">
-          <option value="all" {% if not_rated_by == 'all' %}selected{% endif %}>all raters</option>
-          {% for rater in known_raters %}
-            <option value="{{ rater.value }}" {% if not_rated_by == rater.value %}selected{% endif %}>not rated by {{ rater.display }}</option>
+    <header class="dashboard-heading">
+      <h1>{{ t('Music library') }}</h1>
+      <div class="toolbar">
+        {% include "_language.html" %}
+        <a class="button" href="{{ url_for('add_song') }}">{{ t('Add song') }}</a>
+        <form id="refresh-names" action="{{ url_for('refresh_usernames') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
+          <button type="submit">{{ t('Refresh names') }}</button>
+        </form>
+        <a class="button secondary" href="{{ url_for('logout') }}">{{ t('Logout') }}</a>
+      </div>
+    </header>
+    <section class="progress-list" aria-label="{{ t('Rating progress') }}">
+      {% for rater in known_raters %}
+        {% set count = progress.get(rater.user_id|string, 0) %}
+        <div class="person-progress">
+          <span title="{{ t('Discord ID: {id}', id=rater.user_id) }}">{{ rater.display }}</span>
+          <span data-progress-user="{{ rater.user_id }}">{{ count }} / {{ library_total }}</span>
+          <meter data-meter-user="{{ rater.user_id }}" min="0" max="{{ library_total or 1 }}" value="{{ count }}" aria-label="{{ t('Rating progress for {name}', name=rater.display) }}"></meter>
+        </div>
+      {% else %}
+        <p>{{ t('No raters yet. Rate a song in Discord to add your name here.') }}</p>
+      {% endfor %}
+    </section>
+    <form id="filters" method="get" action="{{ url_for('index') }}">
+      <div class="toolbar">
+        <input type="text" name="q" aria-label="{{ t('Search songs') }}" placeholder="{{ t('Search songs…') }}" value="{{ search_query }}">
+        <label>{{ t('View') }}
+          <select name="view" aria-label="{{ t('Library view') }}">
+            {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review')] %}
+              <option value="{{ value }}" {% if view == value %}selected{% endif %}>{{ t(label) }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>{{ t('Me') }}
+          <select name="viewer" aria-label="{{ t('My identity for Missing my rating') }}">
+            <option value="">{{ t('Choose your name') }}</option>
+            {% for rater in known_raters %}
+              <option value="{{ rater.user_id }}" {% if viewer == rater.user_id %}selected{% endif %}>{{ rater.display }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <select aria-label="{{ t('Average rating filter') }}" name="avg_filter">
+          <option value="all" {% if avg_filter == 'all' %}selected{% endif %}>{{ t('Any average') }}</option>
+          {% for value in ['>=1', '>=2', '>=3', '=1', '=2', '=3'] %}
+            <option value="{{ value }}" {% if avg_filter == value %}selected{% endif %}>{{ t('Average') }} {{ value }}</option>
           {% endfor %}
         </select>
-        <button type="submit">Search</button>
-      </form>
-      <a class="button" href="{{ url_for('add_song') }}">Add new song</a>
-      <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+        <select aria-label="{{ t('Veto filter') }}" name="banned_filter">
+          {% for value, label in [('all', 'Any veto status'), ('banned', 'Has a veto'), ('not_banned', 'No vetoes')] %}
+            <option value="{{ value }}" {% if banned_filter == value %}selected{% endif %}>{{ t(label) }}</option>
+          {% endfor %}
+        </select>
+        <select aria-label="{{ t('Unrated by person') }}" name="not_rated_by">
+          <option value="all">{{ t('Any rating coverage') }}</option>
+          {% for rater in known_raters %}
+            <option value="{{ rater.value }}" {% if not_rated_by == rater.value %}selected{% endif %}>{{ t('Unrated by {name}', name=rater.display) }}</option>
+          {% endfor %}
+        </select>
+        <label>{{ t('Sort') }}
+          <select name="sort" aria-label="{{ t('Sort songs') }}">
+            {% for value, label in [('title', 'Title'), ('play_count', 'Plays'), ('last_played', 'Last played'), ('coverage', 'Rating coverage'), ('relevance', 'Search relevance')] %}
+              <option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ t(label) }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <select name="direction" aria-label="{{ t('Sort direction') }}">
+          <option value="asc" {% if direction == 'asc' %}selected{% endif %}>{{ t('Ascending') }}</option>
+          <option value="desc" {% if direction == 'desc' %}selected{% endif %}>{{ t('Descending') }}</option>
+        </select>
+        <button type="submit">{{ t('Apply') }}</button>
+        <a href="{{ url_for('index') }}">{{ t('Reset') }}</a>
+      </div>
+      <details class="listening-controls" open>
+        <summary>{{ t('Listening preview') }}</summary>
+        <div class="listener-options">
+          {% for rater in known_raters %}
+            <label><input type="checkbox" name="listener" value="{{ rater.user_id }}" {% if rater.user_id in listeners %}checked{% endif %}> {{ rater.display }}</label>
+          {% endfor %}
+          <label>{{ t('Unrated songs') }}
+            <select name="ignore_unrated" aria-label="{{ t('Listening preview unrated rule') }}">
+              <option value="on" {% if ignore_unrated %}selected{% endif %}>{{ t('Allow') }}</option>
+              <option value="off" {% if not ignore_unrated %}selected{% endif %}>{{ t('Block') }}</option>
+            </select>
+          </label>
+          <span id="preview-rule" class="hint">{% if listeners %}{{ t('Every rating must be ≥ {threshold}', threshold=threshold) }}{% else %}{{ t('Select friends to preview') }}{% endif %}</span>
+        </div>
+        <p class="hint">{{ t("Preview only. Uses the highest selected friend's minimum; changing this selection does not control the bot.") }}</p>
+      </details>
+    </form>
+    <div class="saved-views toolbar">
+      <label>{{ t('Saved view') }} <select id="saved-view" aria-label="{{ t('Saved custom views') }}"><option value="">{{ t('Choose a saved view') }}</option></select></label>
+      <input id="view-name" type="text" maxlength="60" placeholder="{{ t('Name this view') }}" aria-label="{{ t('Name for saved view') }}">
+      <button id="save-view" type="button">{{ t('Save view') }}</button>
+      <button id="delete-view" type="button">{{ t('Delete saved view') }}</button>
+      <span id="view-status" class="hint" role="status"></span>
     </div>
-    {% if not known_raters %}
-      <p>No raters yet. Use the Discord rating command first to populate the grid.</p>
-    {% endif %}
-    <p class="library-summary">{{ total }} songs matching · Page {{ page }} of {{ pages }}
-      {% if page > 1 %}<a href="{{ page_url(page - 1) }}">Previous</a>{% endif %}
-      {% if page < pages %}<a href="{{ page_url(page + 1) }}">Next</a>{% endif %}
+    {% if view == 'missing' and viewer is none %}<p class="hint">{{ t('Choose your name under “Me” and apply to see your unrated songs.') }}</p>{% endif %}
+    {% if view == 'everyone' %}<p class="hint">{{ t('Everyone must have rated the song 2 or 3. Vetoes and missing ratings are excluded.') }}</p>{% endif %}
+    {% if view == 'review' %}<p class="hint">{{ t('Missing ratings, ratings differing by 2 or more, or songs without a resolved link.') }}</p>{% endif %}
+    <p class="library-summary">{{ t('{total} songs matching · Page {page} of {pages}', total=total, page=page, pages=pages) }}
+      {% if page > 1 %}<a class="page-link" href="{{ page_url(page - 1) }}">{{ t('Previous') }}</a>{% endif %}
+      {% if page < pages %}<a class="page-link" href="{{ page_url(page + 1) }}">{{ t('Next') }}</a>{% endif %}
     </p>
+    <p id="save-status" class="hint" role="status" aria-live="polite"></p>
     <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Title</th>
-          <th>URL</th>
-          <th>Plays</th>
-          <th>Last played</th>
-          <th>avg / rated</th>
-          {% for rater in known_raters %}
-            <th class="user-name">
-              <div>{{ rater.display }}</div>
-              <form class="threshold-form" action="{{ url_for('update_threshold', user_id=rater.user_id) }}" method="post">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
-                <span>min:</span>
-                <select aria-label="Minimum rating for {{ rater.display }}" name="min_rating" onchange="this.form.submit()">
-                  {% set current_val = user_thresholds.get(rater.user_id, 0.0) %}
-                  <option value="0.0" {% if current_val == 0.0 %}selected{% endif %}>0.0</option>
-                  <option value="0.5" {% if current_val == 0.5 %}selected{% endif %}>0.5</option>
-                  <option value="1.0" {% if current_val == 1.0 %}selected{% endif %}>1.0</option>
-                  <option value="1.5" {% if current_val == 1.5 %}selected{% endif %}>1.5</option>
-                  <option value="2.0" {% if current_val == 2.0 %}selected{% endif %}>2.0</option>
-                  <option value="2.5" {% if current_val == 2.5 %}selected{% endif %}>2.5</option>
-                  <option value="3.0" {% if current_val == 3.0 %}selected{% endif %}>3.0</option>
-                </select>
-              </form>
-            </th>
-          {% endfor %}
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for song in songs %}
-        <tr>
-          <td>{{ song.song_id }}</td>
-          <td>{{ song.title }}</td>
-          <td>{% if song.url %}<a href="{{ song.url }}" target="_blank">Link</a>{% else %}<em>None</em>{% endif %}</td>
-          <td>{{ song.play_count or 0 }}</td>
-          <td>{{ song.last_played or '-' }}</td>
-          {% set summary = rating_summary.get(song.song_id) %}
-          <td>{{ summary.avg_score|round(2) if summary and summary.avg_score is not none else '-' }} / {{ summary.count if summary else 0 }}</td>
-          {% for rater in known_raters %}
-          <td>
-            {% set current_score = ratings_matrix.get(song.song_id, {}).get(rater.user_id) %}
-            <form class="rating-form" action="{{ url_for('rate_song', song_id=song.song_id) }}" method="post">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
-              <input type="hidden" name="q" value="{{ search_query }}">
-              <input type="hidden" name="rater" value="{{ rater.value }}">
-              <select name="score" data-score="{{ current_score if current_score is not none else 'unrated' }}" aria-label="Rating by {{ rater.display }} for {{ song.title }}" onchange="this.form.submit()">
-                <option value="unrated" {% if current_score is none %}selected{% endif %}>—</option>
-                <option value="3" {% if current_score == 3 %}selected{% endif %}>3</option>
-                <option value="2" {% if current_score == 2 %}selected{% endif %}>2</option>
-                <option value="1" {% if current_score == 1 %}selected{% endif %}>1</option>
-                <option value="0" {% if current_score == 0 %}selected{% endif %}>0</option>
-                <option value="-1" {% if current_score == -1 %}selected{% endif %}>Veto</option>
-              </select>
-            </form>
-          </td>
-          {% endfor %}
-          <td class="action-buttons">
-            <a class="button" href="{{ url_for('edit_song', song_id=song.song_id) }}">Edit</a>
-            <form action="{{ url_for('delete_song', song_id=song.song_id) }}" method="post">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
-              <button type="submit" class="button danger">Delete</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">{{ t('ID') }}</th>
+            {% for key, label in [('title', 'Title')] %}
+              <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == key else 'none' }}"><a class="sort-link" href="{{ sort_url(key) }}">{{ t(label) }}{% if sort == key %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            {% endfor %}
+            <th scope="col">{{ t('URL') }}</th>
+            {% for key, label in [('play_count', 'Plays'), ('last_played', 'Last played')] %}
+              <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == key else 'none' }}"><a class="sort-link" href="{{ sort_url(key) }}">{{ t(label) }}{% if sort == key %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            {% endfor %}
+            <th scope="col">{{ t('Average') }}</th>
+            <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == 'coverage' else 'none' }}"><a class="sort-link" href="{{ sort_url('coverage') }}">{{ t('Rated') }}{% if sort == 'coverage' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            {% for rater in known_raters %}
+              <th scope="col" class="user-name">
+                <div title="{{ t('Discord ID: {id}', id=rater.user_id) }}">{{ rater.display }}</div>
+                <form class="threshold-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('update_threshold', user_id=rater.user_id) }}" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
+                  <label>{{ t('min:') }}
+                    <select aria-label="{{ t('Minimum rating for {name}', name=rater.display) }}" name="min_rating" onchange="this.form.requestSubmit()">
+                      {% set current_val = user_thresholds.get(rater.user_id, 0.0) %}
+                      {% if current_val not in [0, 0.5, 1, 1.5, 2, 2.5, 3] %}<option value="{{ current_val }}" selected>{{ current_val }}</option>{% endif %}
+                      {% for value in [0, 0.5, 1, 1.5, 2, 2.5, 3] %}
+                        <option value="{{ value }}" {% if current_val == value %}selected{% endif %}>{{ value }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <noscript><button type="submit">{{ t('Set') }}</button></noscript>
+                </form>
+              </th>
+            {% endfor %}
+            <th scope="col">{{ t('Listening preview') }}</th>
+            <th scope="col">{{ t('Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for song in songs %}
+            {% set summary = rating_summary.get(song.song_id, {}) %}
+            <tr data-song-id="{{ song.song_id }}">
+              <td>{{ song.song_id }}</td>
+              <td>{{ song.title }}</td>
+              <td>{% if song.url %}<a href="{{ song.url }}" target="_blank" rel="noopener noreferrer">{{ t('Link') }}</a>{% else %}<span class="hint">{{ t('Unresolved') }}</span>{% endif %}</td>
+              <td>{{ song.play_count or 0 }}</td>
+              <td>{{ song.last_played or '—' }}</td>
+              <td data-average>{{ summary.avg_score|round(2) if summary.avg_score is defined and summary.avg_score is not none else '—' }}</td>
+              <td data-coverage>{{ summary.get('rated_count', 0) }} / {{ known_raters|length }}</td>
+              {% for rater in known_raters %}
+                {% set current_score = ratings_matrix.get(song.song_id, {}).get(rater.user_id) %}
+                <td class="rating-cell">
+                  <form class="rating-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('rate_song', song_id=song.song_id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
+                    <input type="hidden" name="rater" value="{{ rater.value }}">
+                    <select name="score" data-score="{{ current_score if current_score is not none else 'unrated' }}" aria-label="{{ t('Rating by {name} for {title}', name=rater.display, title=song.title) }}">
+                      <option value="unrated" {% if current_score is none %}selected{% endif %}>—</option>
+                      {% for value in [3, 2, 1, 0, -1] %}<option value="{{ value }}" {% if current_score == value %}selected{% endif %}>{{ t('Veto') if value == -1 else value }}</option>{% endfor %}
+                    </select>
+                    <noscript><button type="submit">{{ t('Save') }}</button></noscript>
+                  </form>
+                  <div class="rating-feedback"><span class="cell-status" role="status"></span><button type="button" class="undo-rating" hidden>{{ t('Undo') }}</button></div>
+                </td>
+              {% endfor %}
+              <td class="preview-cell" data-preview>
+                {% if not listeners %}{{ t('Select friends') }}{% elif previews[song.song_id].allowed %}<span class="qualifies">{{ t('Qualifies') }}</span>{% else %}<span class="blocked">{{ t('Blocked') }}</span><span class="blockers">{{ previews[song.song_id].blockers|join('; ') }}</span>{% endif %}
+              </td>
+              <td class="action-buttons">
+                <a class="button" href="{{ url_for('edit_song', song_id=song.song_id) }}">{{ t('Edit') }}</a>
+                <form action="{{ url_for('delete_song', song_id=song.song_id) }}" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
+                  <button type="submit" class="button danger">{{ t('Delete') }}</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}<tr><td colspan="{{ 9 + known_raters|length }}">{{ t('No songs match this view.') }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
     </div>
+    <script id="dashboard-data" type="application/json">{{ dashboard_data|tojson }}</script>
   </body>
 </html>

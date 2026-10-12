@@ -1,30 +1,31 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ language }}">
   <head>
     <meta charset="utf-8">
-    <title>{{ action }} Song</title>
+    <title>{{ t(action) }} {{ t('Song') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preload" href="{{ url_for('static', filename='fonts/JetBrainsMono-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
   </head>
   <body class="editor">
     <main class="page">
-    <h1>{{ action }} Song</h1>
+      {% include "_language.html" %}
+    <h1>{{ t(action) }} {{ t('Song') }}</h1>
     <form method="post">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
-      <label for="title">Title</label>
+      <label for="title">{{ t('Title') }}</label>
       <input type="text" id="title" name="title" required value="{{ song.title if song else '' }}">
 
-      <label for="url">URL (optional)</label>
+      <label for="url">{{ t('URL (optional)') }}</label>
       <input type="url" id="url" name="url" value="{{ song.url if song else '' }}">
 
-      <label for="play_count">Play count</label>
+      <label for="play_count">{{ t('Play count') }}</label>
       <input type="number" id="play_count" name="play_count" min="0" value="{{ song.play_count if song else 0 }}">
 
-      <button type="submit">{{ action }}</button>
+      <button type="submit">{{ t(action) }}</button>
     </form>
-    <p><a href="{{ url_for('index') }}">Back to list</a></p>
+    <p><a href="{{ url_for('index') }}">{{ t('Back to list') }}</a></p>
     </main>
   </body>
 </html>

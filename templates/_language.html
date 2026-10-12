@@ -1,0 +1,10 @@
+<form class="language-form" action="{{ url_for('change_language') }}" method="get">
+  <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+  <label>{{ t('Language') }}
+    <select name="lang" aria-label="{{ t('Language') }}" onchange="this.form.requestSubmit()">
+      <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+      <option value="ru" {% if language == 'ru' %}selected{% endif %}>Русский</option>
+    </select>
+  </label>
+  <noscript><button type="submit">{{ t('Apply') }}</button></noscript>
+</form>

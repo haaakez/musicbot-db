@@ -142,7 +142,23 @@ python webapp.py
 
 Open **http://127.0.0.1:5000**. Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and a long, persistent `FLASK_SECRET_KEY` first. The fallback login is `admin` / `password` for local development only.
 
-The grid shows 50 songs per page, with one column for each person who has rated a song. **—** means unrated; selecting it clears that rating. You can filter by title, average, vetoes, or songs a particular person hasn't rated. The displayed average excludes vetoes and is informational. Rating edits preserve your search, filters and page.
+The grid shows 50 songs per page with a column for each known participant. Names are stored separately from ratings, so clearing someone's last rating keeps their column. The bot caches Discord usernames when it starts and when people rate songs. The dashboard also supports `DISCORD_TOKEN`, `DISCORD_BOT_TOKEN`, or `token.txt` for looking up missing names. **Refresh names** updates the cache; if Discord is unavailable, existing names are kept.
+
+**—** means unrated; selecting it clears that rating. Changes save without reloading and show **Saved** with an **Undo** button. A conflicting edit from another tab or the bot is rejected so undo does not overwrite a different current rating. Averages, rating coverage, progress and listening previews update immediately. Apply the view again to refresh which rows are shown and their sort order.
+
+Each person's progress is their rated songs out of the entire library, including vetoes. Click **Title**, **Plays**, **Last played**, or **Rated** to sort; click again to reverse the order. Filters and pagination retain the selected listeners.
+
+The built-in views are:
+
+- **Everyone likes:** every known participant rated the song 2 or 3.
+- **Missing my rating:** select yourself under **Me**; the view shows songs you haven't rated. Your selection is remembered for the session.
+- **Needs review:** missing ratings, ratings differing by at least 2, or songs without a resolved link.
+
+You can also name and save the current filters, sort order, identity and listener selection. Custom saved views stay in that browser's local storage; they are not shared between friends or devices.
+
+**Listening preview** checks the friends you select against their highest minimum. It names anyone who blocks a song because of a veto, low score, or missing rating when unrated songs are blocked. This previews rating eligibility only, not link availability or radio session history, and does not change the bot's active listeners or unrated setting.
+
+Use the **Language / Язык** selector for English or Russian. It covers the library, login, song editor, and inline messages; song titles and Discord usernames stay as supplied. The selection is remembered in your browser session, including after logout. The displayed average excludes vetoes and is informational.
 
 This is still a shared admin dashboard: anyone logged in can edit anyone's ratings, thresholds and songs. It does not yet have individual accounts.
 
@@ -158,4 +174,4 @@ Back up `music_bot.db` with SQLite's backup API while the bot is running, or sto
 
 ## What I'd add next
 
-The next useful changes would be a fixed five-person roster with individual dashboard accounts, CSV import/export with duplicate merging, and a broken-link repair screen. Artist cooldowns and recent listening history would make radio feel less repetitive across sessions. A Discord “rate my unrated songs” flow would help fill the library without everyone working through a spreadsheet.
+The next useful changes would be individual dashboard accounts, a configurable five-person roster, CSV import/export with duplicate merging, and a broken-link repair screen. Artist cooldowns and recent listening history would make radio feel less repetitive across sessions. A Discord “rate my unrated songs” flow would help fill the library without everyone working through a spreadsheet.
