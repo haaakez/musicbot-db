@@ -22,6 +22,16 @@ lavalink:
 
 # These are opt-in: set the matching environment variables before starting Java.
 plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    clients:
+      - MUSIC
+      - MWEB
+      - TVHTML5_SIMPLY
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
   lavasrc:
     providers:
       - 'ytsearch:"%ISRC%"'
