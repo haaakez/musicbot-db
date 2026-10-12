@@ -138,15 +138,6 @@
         <p class="hint">{{ t("Preview only. Uses the highest selected friend's minimum; changing this selection does not control the bot.") }}</p>
       </details>
     </form>
-    <details class="listening-controls"><summary>{{ t('Saved custom views') }}</summary>
-    <div class="saved-views toolbar">
-      <label>{{ t('Saved view') }} <select id="saved-view" aria-label="{{ t('Saved custom views') }}"><option value="">{{ t('Choose a saved view') }}</option></select></label>
-      <input id="view-name" type="text" maxlength="60" placeholder="{{ t('Name this view') }}" aria-label="{{ t('Name for saved view') }}">
-      <button id="save-view" type="button">{{ t('Save view') }}</button>
-      <button id="delete-view" type="button">{{ t('Delete saved view') }}</button>
-      <span id="view-status" class="hint" role="status"></span>
-    </div>
-    </details>
     <p class="hint rating-guide">{{ t('Ratings save automatically. — means unrated; -1 blocks playback. Select your name to highlight your column.') }}</p>
     {% if view == 'missing' and viewer is none %}<p class="hint">{{ t('Choose your name under “Me” and apply to see your unrated songs.') }}</p>{% endif %}
     {% if view == 'everyone' %}<p class="hint">{{ t('Everyone must have rated the song 2 or 3. Vetoes and missing ratings are excluded.') }}</p>{% endif %}

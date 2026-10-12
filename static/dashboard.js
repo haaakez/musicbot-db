@@ -187,50 +187,6 @@ namesForm.addEventListener('submit', async event => {
   }
 });
 
-// Saved custom views belong to this browser; the built-in views work without storage.
-const storageKey = 'musicbot.library.views.v1';
-const savedSelect = document.getElementById('saved-view');
-const viewStatus = document.getElementById('view-status');
-let savedViews = [];
-try {
-  const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
-  if (Array.isArray(stored)) savedViews = stored.filter(view => typeof view.name === 'string' && typeof view.query === 'string');
-} catch (_) { viewStatus.textContent = text('Browser storage unavailable.'); }
-function renderSavedViews() {
-  savedSelect.replaceChildren(new Option(text('Choose a saved view'), ''));
-  savedViews.forEach((view, index) => savedSelect.add(new Option(view.name, String(index))));
-}
-function persistViews() {
-  try {
-    localStorage.setItem(storageKey, JSON.stringify(savedViews));
-    renderSavedViews();
-    return true;
-  } catch (_) {
-    viewStatus.textContent = text('Could not save: browser storage unavailable.');
-    return false;
-  }
-}
-document.getElementById('save-view').addEventListener('click', () => {
-  const input = document.getElementById('view-name');
-  const name = input.value.trim();
-  if (!name) { viewStatus.textContent = text('Enter a name first.'); input.focus(); return; }
-  const query = new URLSearchParams(new FormData(filters));
-  const view = {name, query: query.toString()};
-  const existing = savedViews.findIndex(item => item.name === name);
-  if (existing >= 0) savedViews[existing] = view;
-  else savedViews.push(view);
-  if (persistViews()) { viewStatus.textContent = text('View saved in this browser.'); input.value = ''; }
-});
-savedSelect.addEventListener('change', () => {
-  const view = savedViews[Number(savedSelect.value)];
-  if (savedSelect.value !== '' && view) window.location.assign(`${filters.action}?${view.query}`);
-});
-document.getElementById('delete-view').addEventListener('click', () => {
-  if (savedSelect.value === '') { viewStatus.textContent = text('Choose a saved view first.'); return; }
-  savedViews.splice(Number(savedSelect.value), 1);
-  if (persistViews()) viewStatus.textContent = text('Saved view deleted.');
-});
-renderSavedViews();
 updatePreviews();
 
 const botSettingsForm = document.getElementById('bot-settings');

@@ -163,7 +163,6 @@ meter::-moz-meter-bar { background: var(--accent); }
 .listener-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }
 .listener-options input[type=checkbox] { min-height: auto; padding: 0; width: 16px; height: 16px; accent-color: var(--accent); }
 .listening-controls p { margin: 6px 0 0; }
-.saved-views input { max-width: 220px; }
 .rating-feedback { display: flex; align-items: center; gap: 5px; font-size: 11px; min-height: 0; }
 .rating-feedback:has(.cell-status:not(:empty)) { margin-top: 3px; }
 .cell-status { color: var(--muted); }
@@ -186,7 +185,6 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
 .search-toolbar input[name=q] { flex: 1; min-width: 200px; max-width: 620px; }
 .person-progress a { text-decoration: none; }
 .person-progress a:hover { text-decoration: underline; }
-.saved-views { margin-top: 8px; margin-bottom: 0; }
 .rating-guide { margin: 6px 0; }
 th.my-rating, td.my-rating { border-left: 2px solid var(--accent); border-right: 1px solid #5887ad; }
 th.my-rating { color: var(--text); background: #293b49; }
