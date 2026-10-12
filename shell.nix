@@ -4,8 +4,6 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     python311
     jdk17
-    nodejs_22
-    deno
     libsodium
     pkg-config
     gcc
@@ -28,7 +26,7 @@ pkgs.mkShell {
 
     source venv/bin/activate
 
-    python -c 'import wavelink, yt_dlp, yt_dlp_ejs; import importlib.metadata; importlib.metadata.version("bgutil-ytdlp-pot-provider")' >/dev/null 2>&1 || {
+    python -c 'import wavelink, discord, flask' >/dev/null 2>&1 || {
       pip install --upgrade pip setuptools wheel
       pip install -r requirements.txt
     }

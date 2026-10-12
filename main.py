@@ -17,7 +17,6 @@ from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
 from preferences import setup_settings, read_settings, write_settings, register_guild
 from presentation import TrackPresentation
-from youtube_audio import YoutubeAudio
 
 DB_NAME = "music_bot.db"
 
@@ -94,7 +93,6 @@ if len(set([TOKEN, *sync_tokens])) != 1 + len(sync_tokens):
 sync_playback = SyncPlayback(bot, sync_tokens)
 presentation = TrackPresentation(bot, sync_playback, DB_NAME)
 sync_playback.before_leave = presentation.clear_followers
-youtube_audio = YoutubeAudio(os.path.join(os.path.dirname(__file__), ".audio-cache"))
 
 now_playing_msgs = {}
 radio_active = {}
@@ -106,7 +104,6 @@ selection_locks = {}
 bound_channels = {}
 recent_playback_errors = {}
 recent_end_reasons = {}
-playback_generations = {}
 
 EMBED_BG = 0x2b2d31
 EMBED_RED = 0xED4245
@@ -196,14 +193,9 @@ def resolve_search_query(query):
     return query
 
 async def play_track(player, track):
-    generation = playback_generations.get(player.guild.id, 0)
-    players = list(bot.voice_clients)
-    players.extend(p for group in sync_playback.groups.values() for _, p in group)
-    protected = [getattr(p.current.extras, 'cache_path', None) for p in players if p.current]
-    prepared = await youtube_audio.prepare(track, player.node, protected)
-    if playback_generations.get(player.guild.id, 0) != generation or not player.connected:
+    if not player.connected:
         return False
-    await player.play(prepared)
+    await player.play(track)
     return True
 
 
@@ -418,8 +410,7 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     player = payload.player
-    # Lavalink decodes cached files with a local path and "Unknown title".
-    # Wavelink keeps the submitted song metadata on the original track.
+    # Keep the metadata and extras from the track submitted to Wavelink.
     track = payload.original or payload.track
     if not player or not track: return
 
@@ -607,7 +598,6 @@ async def skip(ctx):
 
 @bot.command(aliases=['st'])
 async def stop(ctx):
-    playback_generations[ctx.guild.id] = playback_generations.get(ctx.guild.id, 0) + 1
     vc: wavelink.Player = ctx.voice_client
     radio_active[ctx.guild.id] = False
 
@@ -763,7 +753,6 @@ async def resume(ctx):
 
 @bot.command(aliases=['l'])
 async def leave(ctx):
-    playback_generations[ctx.guild.id] = playback_generations.get(ctx.guild.id, 0) + 1
     vc: wavelink.Player = ctx.voice_client
     radio_active[ctx.guild.id] = False
     if ctx.guild.id in played_history: played_history[ctx.guild.id].clear()
@@ -1004,7 +993,6 @@ async def on_command_error(ctx, error):
 
 async def main():
     async with bot:
-        await youtube_audio.initialize()
         await sync_playback.start()
         display_task = asyncio.create_task(presentation.maintain())
         try:

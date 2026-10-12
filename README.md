@@ -4,7 +4,7 @@ a discord music bot with a shared library, personal ratings, radio, playlist que
 
 ## run
 
-needs python 3.11+, node 22+, deno, git, lavalink v4 saved as `Lavalink.jar`, its required java version, and a discord bot with message content and server members intents enabled.
+needs python 3.11+, lavalink v4 saved as `Lavalink.jar`, its required java version, and a discord bot with message content and server members intents enabled.
 
 ```bash
 python -m venv venv
@@ -125,19 +125,3 @@ gunicorn --workers 1 --bind 127.0.0.1:5000 webapp:app
 ```
 
 run everything from the same directory. keep lavalink private. back up `music_bot.db` with sqlite's backup api, or stop both apps before copying it.
-
-## youtube audio
-
-youtube audio is downloaded on demand with yt-dlp and a local playback-token helper, then played through lavalink's local source. the original titles, links, ratings, and channel sync are retained. no browser cookies or account are needed for this setup.
-
-the first bot start installs the pinned helper under `.audio-cache/provider`. later starts reuse it. audio is cached under `.audio-cache/tracks`, with a 1 gb limit by default. old files are removed as needed, while currently playing files are kept.
-
-```bash
-# after updating the code
-nix-shell
-pip install -r requirements.txt
-# restart lavalink so sources.local is enabled
-java -jar Lavalink.jar
-```
-
-set `YOUTUBE_CACHE_MB` to change the cache limit, or `YOUTUBE_CACHE_ENABLED=false` to use lavalink's youtube streaming again. source availability can still change; `b!radioinfo` and the terminals show playback failures separately from rating filters.

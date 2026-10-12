@@ -18,7 +18,7 @@ lavalink:
       twitch: true
       vimeo: true
       http: true
-      local: true
+      local: false
 
 # These are opt-in: set the matching environment variables before starting Java.
 plugins:
