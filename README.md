@@ -125,3 +125,18 @@ gunicorn --workers 1 --bind 127.0.0.1:5000 webapp:app
 ```
 
 run everything from the same directory. keep lavalink private. back up `music_bot.db` with sqlite's backup api, or stop both apps before copying it.
+
+## audio sources
+
+song searches and saved youtube tracks try a matching soundcloud recording first, then youtube. matching checks the title and, when youtube metadata is available, duration. it can still select a different upload; use an explicit link or search prefix to choose a source.
+
+```text
+b!play scsearch:artist title
+b!play ytsearch:artist title
+b!play ytmsearch:artist title
+b!play spsearch:artist title
+b!play amsearch:artist title
+b!play <soundcloud, bandcamp, spotify or apple music link>
+```
+
+soundcloud and bandcamp provide audio directly. spotify and apple music require their credentials in `.env`; lavasrc resolves their metadata through soundcloud, then youtube. youtube tries mweb and tvhtml5_simply before its other playback clients. ratings stay attached to the library song when another source is selected.

@@ -17,6 +17,7 @@ from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
 from preferences import setup_settings, read_settings, write_settings, register_guild
 from presentation import TrackPresentation
+from source_resolution import resolve_tracks
 
 DB_NAME = "music_bot.db"
 
@@ -199,9 +200,14 @@ async def play_track(player, track):
     return True
 
 
-async def search_tracks(query):
-    source = None if re.match(r"^(ytsearch|ytmsearch|scsearch|spsearch|amsearch|dzsearch):", query) else wavelink.TrackSource.YouTubeMusic
-    return await wavelink.Playable.search(query, source=source, node=wavelink.Pool.get_node("primary"))
+async def search_tracks(query, title=None):
+    rows = await asyncio.to_thread(run_query, 'SELECT song_id, title FROM songs WHERE url=?', (query,), True) if is_url(query) else []
+    if title is None and rows:
+        title = rows[0][1]
+    tracks = await resolve_tracks(query, wavelink.Pool.get_node("primary"), title)
+    if rows and tracks and not isinstance(tracks, wavelink.Playlist):
+        tracks[0].extras = {'song_id': rows[0][0]}
+    return tracks
 
 
 def import_songs_from_txt():
@@ -332,7 +338,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
         song_id, title, url, _ = song
         candidates.remove(song)
         try:
-            tracks = await search_tracks(url or title)
+            tracks = await search_tracks(url or title, title)
             if not tracks:
                 failures[song_id] = time.monotonic() + 300
                 continue
@@ -430,8 +436,8 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     if existing_id:
         current_play_count = (existing_id[0][1] or 0) + 1
         song_id = existing_id[0][0]
-        run_query("UPDATE songs SET title = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
-                  (track.title, current_play_count, song_id))
+        run_query("UPDATE songs SET play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
+                  (current_play_count, song_id))
     else:
         manual_match = run_query("SELECT song_id, play_count FROM songs WHERE LOWER(title) = ? AND url IS NULL LIMIT 1", (track.title.lower(),), fetch=True)
         if manual_match:
@@ -620,7 +626,10 @@ async def now_playing(ctx):
         return await ctx.send(embed=discord.Embed(description="Nothing is playing right now.", color=EMBED_BG))
 
     track = vc.current
-    rows = await asyncio.to_thread(run_query, 'SELECT song_id, play_count FROM songs WHERE url=?', (track.uri,), True)
+    stored_id = getattr(track.extras, 'song_id', None)
+    rows = await asyncio.to_thread(run_query, 'SELECT song_id, play_count FROM songs WHERE song_id=?', (stored_id,), True) if stored_id else []
+    if not rows:
+        rows = await asyncio.to_thread(run_query, 'SELECT song_id, play_count FROM songs WHERE url=?', (track.uri,), True)
     song_id, plays = rows[0] if rows else (None, 0)
     settings = await asyncio.to_thread(read_settings, DB_NAME, ctx.guild.id)
     embed = await asyncio.to_thread(presentation.build_embed, track, plays, song_id, settings['embed_ratings'])

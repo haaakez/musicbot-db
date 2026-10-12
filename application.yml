@@ -34,6 +34,7 @@ plugins:
       - WEBEMBEDDED
   lavasrc:
     providers:
+      - "scsearch:%QUERY%"
       - 'ytsearch:"%ISRC%"'
       - "ytsearch:%QUERY%"
     sources:
