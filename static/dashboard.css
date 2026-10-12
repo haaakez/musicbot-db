@@ -192,4 +192,5 @@ td.my-rating { background: #26313a; }
 .table-wrap { max-height: 72vh; }
 .song-title { line-height: 1.4; }
 .song-id { min-width: 66px; }
-.track-cover { display: block; width: 40px; height: 40px; object-fit: cover; margin-bottom: 2px; background: var(--raised); }
+.song-id-content { display: flex; align-items: center; gap: 7px; }
+.track-cover { display: block; flex: 0 0 40px; width: 40px; height: 40px; object-fit: cover; background: var(--raised); }
