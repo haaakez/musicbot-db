@@ -760,7 +760,7 @@ async def library(ctx, page: int = 1):
             user_cols.append(col)
 
         rating_str = " | ".join(user_cols)
-        row_num = str(offset + idx + 1).zfill(2)
+        row_num = str(s_id).zfill(2)
         rows_text += f"{row_num}  | {display_title} | {str(plays).center(5)} | {rating_str}\n"
 
     embed = discord.Embed(
