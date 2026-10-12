@@ -18,7 +18,11 @@ from sync_playback import SyncPlayback
 DB_NAME = "music_bot.db"
 
 def setup_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_NAME, timeout=30)
+    # Set connection pragmas before schema backfills start a transaction.
+    conn.execute('PRAGMA foreign_keys = ON').close()
+    # journal_mode returns a row; consume it before committing other work.
+    conn.execute('PRAGMA journal_mode = WAL').fetchall()
     c = conn.cursor()
 
     c.execute('''CREATE TABLE IF NOT EXISTS songs (
@@ -58,8 +62,7 @@ def setup_db():
         guild_id INTEGER PRIMARY KEY, ignore_unrated INTEGER NOT NULL DEFAULT 1
     )''')
     setup_users(conn)
-    c.execute('PRAGMA foreign_keys = ON')
-    c.execute('PRAGMA journal_mode = WAL')
+    c.close()
     conn.commit()
     conn.close()
 
