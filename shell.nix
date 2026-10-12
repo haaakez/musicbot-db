@@ -31,8 +31,8 @@ pkgs.mkShell {
       pip install -r requirements.txt
     }
     
-    echo "🎵 Music Bot & Lavalink environment ready"
-    echo "▶️ Run 'java -jar Lavalink.jar' in one terminal"
-    echo "▶️ Run 'python main.py' in another!"
+    echo "Music Bot & Lavalink environment ready"
+    echo "Run 'java -jar Lavalink.jar' in one terminal"
+    echo "Run 'python main.py' in another"
   '';
 }
