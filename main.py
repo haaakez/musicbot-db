@@ -110,16 +110,9 @@ EMBED_BG = 0x2b2d31
 EMBED_RED = 0xED4245
 
 class NormalizedFilters(wavelink.Filters):
-    @property
-    def payload(self) -> dict:
-        data = super().payload
-        if "pluginFilters" not in data:
-            data["pluginFilters"] = {}
-        data["pluginFilters"]["normalization"] = {
-            "maxAmplitude": 0.4,
-            "adaptive": True
-        }
-        return data
+    def __init__(self):
+        super().__init__()
+        self.plugin_filters.set(normalization={"maxAmplitude": 0.4, "adaptive": True})
 
 def run_query(query, params=(), fetch=False):
     conn = sqlite3.connect(DB_NAME, timeout=30)
@@ -196,7 +189,7 @@ def resolve_search_query(query):
 async def play_track(player, track):
     if not player.connected:
         return False
-    await player.play(track)
+    await player.play(track, filters=NormalizedFilters())
     return True
 
 
