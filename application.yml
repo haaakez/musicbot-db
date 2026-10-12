@@ -3,8 +3,9 @@ server:
   address: 127.0.0.1
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
-      repository: "https://maven.lavalink.dev/releases"
+    # Pinned upstream development build with the iOS playback fix.
+    - dependency: "dev.lavalink.youtube:youtube-plugin:6579cdfd8fbfffad7c95b72fc07ff81c11d9e4de"
+      repository: "https://maven.lavalink.dev/snapshots"
     - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
       repository: "https://maven.lavalink.dev/releases"
     - dependency: "com.github.Devoxin:LavaDSPX-Plugin:0.0.5"
@@ -31,6 +32,7 @@ plugins:
       userAgent: "musicbot"
     clients:
       - MUSIC
+      - IOS
       - MWEB
       - TVHTML5_SIMPLY
       - ANDROID_VR
