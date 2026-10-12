@@ -1,7 +1,7 @@
 """dashboard copy; names and song titles are inserted after translation."""
 RUSSIAN = {
-    'Music library': 'музыкальная библиотека',
-    'Music Bot Database': 'музыкальная библиотека',
+    'Music library': 'dashboard',
+    'Music Bot Database': 'dashboard',
     'Add song': 'добавить трек',
     'Refresh names': 'обновить имена',
     'Logout': 'выйти',
@@ -130,7 +130,7 @@ RUSSIAN = {
 
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
-    'Music Bot Database': 'music library',
+    'Music Bot Database': 'dashboard',
     'No raters yet. Rate a song in Discord to add your name here.': 'no ratings yet. names appear after a first rating in discord.',
     'My identity for Missing my rating': 'participant for the missing rating filter',
     'Choose your name': 'select your name',
