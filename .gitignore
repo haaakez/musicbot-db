@@ -3,10 +3,19 @@ __pycache__/
 *$py.class
 venv/
 .venv/
-music_bot.db
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
 downloads/
 token.txt
 .env
+.env.*
+!.env.example
+*.log
+logs/
 .vscode/
 .idea/
 .DS_Store
@@ -14,8 +23,6 @@ test_search.py
 main-ytdlp.py
 plugins/
 Lavalink.jar
-music_bot.db-shm
-music_bot.db-wal
 
 .audio-cache/
 backups/
