@@ -17,6 +17,8 @@
   <body>
     <h1>{{ action }} Song</h1>
     <form method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
       <label for="title">Title</label>
       <input type="text" id="title" name="title" required value="{{ song.title if song else '' }}">
 

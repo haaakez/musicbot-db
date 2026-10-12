@@ -1,10 +1,13 @@
-from flask import Flask, g, redirect, render_template, request, session, url_for
+from flask import Flask, g, redirect, render_template, request, session, url_for, abort
 import sqlite3
 import os
 import json
 import urllib.request
 import difflib
 import re
+import math
+import secrets
+import hmac
 
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
@@ -12,7 +15,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'password')
-DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN') or os.environ.get('DISCORD_TOKEN')
 
 
 def login_required(func):
@@ -90,7 +93,7 @@ def get_rating_summary(song_ids):
         return {}
     placeholders = ','.join('?' for _ in song_ids)
     rows = query_db(
-        f'SELECT song_id, AVG(score) AS avg_score, COUNT(*) AS count FROM ratings WHERE song_id IN ({placeholders}) GROUP BY song_id',
+        f'SELECT song_id, AVG(CASE WHEN score >= 0 THEN score END) AS avg_score, COUNT(CASE WHEN score >= 0 THEN 1 END) AS count FROM ratings WHERE song_id IN ({placeholders}) GROUP BY song_id',
         tuple(song_ids)
     )
     return {row['song_id']: {'avg_score': row['avg_score'], 'count': row['count']} for row in rows}
@@ -199,6 +202,8 @@ def get_db():
             ensure_db_schema()
         db = g._database = sqlite3.connect(DB_NAME)
         db.row_factory = sqlite3.Row
+        db.execute('PRAGMA foreign_keys = ON')
+        db.execute('PRAGMA busy_timeout = 30000')
     return db
 
 
@@ -221,6 +226,40 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+
+
+
+def normalize_search(text):
+    return ' '.join(''.join(c for c in text.casefold() if c.isalnum() or c.isspace()).split())
+
+
+def csrf_token():
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+@app.context_processor
+def template_helpers():
+    def page_url(page):
+        args = request.args.to_dict()
+        args['page'] = page
+        return url_for('index', **args)
+    return {'csrf_token': csrf_token, 'page_url': page_url}
+
+
+@app.before_request
+def protect_forms():
+    if request.method == 'POST':
+        expected = session.get('csrf_token', '')
+        supplied = request.form.get('csrf_token', '')
+        if not expected or not hmac.compare_digest(expected, supplied):
+            abort(400, 'This form expired. Reload the page and try again.')
+
+
+def back_to_library():
+    # Only construct a local library URL; never trust a submitted redirect URL.
+    return redirect(url_for('index') + '?' + request.form.get('filters', ''))
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -251,12 +290,12 @@ def index():
     not_rated_by = request.args.get('not_rated_by', 'all')
 
     if search_query:
-        norm_q = re.sub(r'[^a-z0-9 ]+', '', search_query.lower()).strip()
+        norm_q = normalize_search(search_query)
         all_rows = query_db('SELECT song_id, title, url, play_count, last_played FROM songs')
         scored = []
         for row in all_rows:
             title = row['title'] or ''
-            title_norm = re.sub(r'[^a-z0-9 ]+', '', title.lower()).strip()
+            title_norm = normalize_search(title)
             if not title_norm:
                 continue
 
@@ -308,7 +347,7 @@ def index():
                 continue
             if op == '>=' and avg_score < threshold:
                 continue
-            if op == '=' and round(avg_score) != threshold:
+            if op == '=' and avg_score != threshold:
                 continue
 
         if banned_filter == 'banned' and not is_song_banned(song_id, song_ratings):
@@ -326,8 +365,16 @@ def index():
     song_ids = [song['song_id'] for song in songs]
     ratings_matrix = get_ratings_matrix(song_ids, known_raters)
 
+    total = len(songs)
+    pages = max(1, math.ceil(total / 50))
+    try:
+        page = max(1, min(pages, int(request.args.get('page', 1))))
+    except ValueError:
+        page = 1
+    songs = songs[(page - 1) * 50:page * 50]
     return render_template(
         'index.html',
+        total=total, page=page, pages=pages,
         songs=songs,
         search_query=search_query,
         avg_filter=avg_filter,
@@ -347,9 +394,11 @@ def update_threshold(user_id):
     try:
         min_rating = float(request.form.get('min_rating', '0.0'))
     except ValueError:
-        min_rating = 0.0
+        abort(400, 'Invalid threshold')
+    if not math.isfinite(min_rating) or not 0 <= min_rating <= 3:
+        abort(400, 'Threshold must be between 0 and 3')
     execute_db('INSERT OR REPLACE INTO user_thresholds (user_id, min_rating) VALUES (?, ?)', (user_id, min_rating))
-    return redirect(url_for('index'))
+    return back_to_library()
 
 
 @app.route('/rate/<int:song_id>', methods=['POST'])
@@ -361,13 +410,18 @@ def rate_song(song_id):
     if user_id is not None and not username:
         username = get_username_for_user_id(user_id)
 
+    if user_id is None:
+        abort(400, 'Choose a Discord user')
+    if request.form.get('score') == 'unrated':
+        execute_db('DELETE FROM ratings WHERE song_id = ? AND user_id = ?', (song_id, user_id))
+        return back_to_library()
     try:
-        score = int(request.form.get('score', '0'))
+        score = int(request.form.get('score', ''))
     except ValueError:
-        score = 0
+        abort(400, 'Invalid rating')
 
     if score not in [-1, 0, 1, 2, 3]:
-        score = 0
+        abort(400, 'Invalid rating')
 
     execute_db(
         'INSERT OR REPLACE INTO ratings (song_id, user_id, username, score) VALUES (?, ?, ?, ?)',
@@ -375,7 +429,7 @@ def rate_song(song_id):
     )
     if user_id is not None and username:
         execute_db('UPDATE ratings SET username = ? WHERE user_id = ? AND username IS NULL', (username, user_id))
-    return redirect(url_for('index', q=request.form.get('q', '')))
+    return back_to_library()
 
 
 @app.route('/add', methods=['GET', 'POST'])
@@ -410,10 +464,13 @@ def edit_song(song_id):
 @app.route('/delete/<int:song_id>', methods=['POST'])
 @login_required
 def delete_song(song_id):
-    execute_db('DELETE FROM songs WHERE song_id = ?', (song_id,))
+    conn = get_db()
+    with conn:
+        conn.execute('DELETE FROM ratings WHERE song_id = ?', (song_id,))
+        conn.execute('DELETE FROM songs WHERE song_id = ?', (song_id,))
     return redirect(url_for('index'))
 
 
 if __name__ == '__main__':
     port = int(os.environ.get('FLASK_PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host=os.environ.get('FLASK_HOST', '127.0.0.1'), port=port, debug=False)
