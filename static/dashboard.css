@@ -14,14 +14,18 @@
 }
 :root {
   color-scheme: dark;
-  --background: #141414;
-  --surface: #1b1b1b;
-  --raised: #242424;
-  --hover: #2c2c2c;
-  --border: #414141;
+  --background: #202020;
+  --surface: #262626;
+  --raised: #303030;
+  --hover: #383838;
+  --border: #525252;
   --text: #e5e5e5;
   --muted: #b0b0b0;
   --danger: #f0aaaa;
+  --accent: #96c7f2;
+  --accent-hover: #c1e0ff;
+  --primary: #24547a;
+  --primary-hover: #2d648e;
 }
 * { box-sizing: border-box; animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 body {
@@ -35,8 +39,8 @@ body {
 body.dashboard { padding: 12px; }
 h1 { margin: 0 0 12px; font-size: 18px; line-height: 1.4; font-weight: 500; letter-spacing: normal; }
 p { margin: 10px 0; }
-a { color: var(--text); text-underline-offset: 4px; }
-a:hover { color: #fff; }
+a { color: var(--accent); text-underline-offset: 4px; }
+a:hover { color: var(--accent-hover); }
 input, select, button { font: inherit; }
 input, select {
   min-height: 30px;
@@ -63,14 +67,24 @@ button, a.button {
   cursor: pointer;
 }
 button:hover, a.button:hover { background: #363636; color: #fff; border-color: #909090; }
+/* Blue identifies primary actions; utility buttons remain neutral. */
+.toolbar button[type=submit], .toolbar > a.button:not(.secondary), .card button, .page button {
+  background: var(--primary);
+  border-color: #5887ad;
+  color: #f2f7fc;
+}
+.toolbar button[type=submit]:hover, .toolbar > a.button:not(.secondary):hover, .card button:hover, .page button:hover {
+  background: var(--primary-hover);
+  border-color: var(--accent);
+}
 a.button.secondary {
   background: var(--raised);
   border-color: var(--border);
   color: var(--text);
 }
 a.button.secondary:hover { background: var(--hover); }
-:where(a, button, input, select):focus-visible { outline: 2px solid #eee; outline-offset: 1px; }
-::selection { background: #d5d5d5; color: #111; }
+:where(a, button, input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+::selection { background: var(--accent); color: #171717; }
 .toolbar, .toolbar form { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .toolbar { margin-bottom: 10px; }
 .toolbar form { margin: 0; }
@@ -90,8 +104,8 @@ th {
   font-size: 12px;
   font-weight: 500;
 }
-td { background: var(--surface); border-bottom: 1px solid #303030; font-size: 13px; }
-tr:nth-child(even) td { background: #1f1f1f; }
+td { background: var(--surface); border-bottom: 1px solid #414141; font-size: 13px; }
+tr:nth-child(even) td { background: #2a2a2a; }
 tbody tr:hover td, tbody tr:focus-within td { background: var(--hover); }
 tbody tr:last-child td { border-bottom: 0; }
 td:first-child { color: var(--muted); }
