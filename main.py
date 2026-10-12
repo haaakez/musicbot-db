@@ -418,7 +418,9 @@ async def on_voice_state_update(member, before, after):
 @bot.event
 async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     player = payload.player
-    track = payload.track
+    # Lavalink decodes cached files with a local path and "Unknown title".
+    # Wavelink keeps the submitted song metadata on the original track.
+    track = payload.original or payload.track
     if not player or not track: return
 
     guild_id = player.guild.id
