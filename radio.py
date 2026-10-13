@@ -3,11 +3,12 @@
 
 def eligible(ratings, listeners, threshold, ignore_unrated):
     for user_id in listeners:
+        minimum = threshold.get(user_id, 0) if isinstance(threshold, dict) else threshold
         score = ratings.get(user_id)
         if score is None:
             if not ignore_unrated:
                 return False
-        elif score == -1 or score < threshold:
+        elif score == -1 or score < minimum:
             return False
     return True
 

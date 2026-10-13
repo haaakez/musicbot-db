@@ -447,6 +447,13 @@ RUSSIAN.update({
     'Invalid link timecode.': 'неверная временная отметка в ссылке.',
 })
 
+RUSSIAN.update({
+    'Each listener uses their own minimum.': 'у каждого слушателя свой минимум.',
+    'Preview only. Each selected listener uses their own minimum; this selection does not control the bot.': 'проверка по личному минимуму каждого слушателя. выбор не управляет ботом.',
+    'Radio checks each listener rating against that person’s minimum. Missing ratings follow the unrated setting.': 'радио сравнивает оценку каждого слушателя с его личным минимумом. пропуски учитываются по настройке треков без оценок.',
+    'Ratings save automatically. The listening preview explains which listeners block a song; it does not control playback.': 'оценки сохраняются автоматически. проверка треков показывает, кто блокирует трек; она не управляет воспроизведением.',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

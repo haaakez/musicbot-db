@@ -224,9 +224,9 @@ def get_progress():
 
 
 def listening_preview(scores, listeners, names, thresholds, ignore_unrated):
-    threshold = max((thresholds.get(uid, 0) for uid in listeners), default=0)
     blockers = []
     for uid in listeners:
+        threshold = thresholds.get(uid, 0)
         score = scores.get(uid)
         if score == -1:
             blockers.append(t('{name}: veto', name=names[uid]))
@@ -234,7 +234,7 @@ def listening_preview(scores, listeners, names, thresholds, ignore_unrated):
             blockers.append(t('{name}: unrated', name=names[uid]))
         elif score is not None and score < threshold:
             blockers.append(t('{name}: {score} below {threshold}', name=names[uid], score=score, threshold=f'{threshold:g}'))
-    return {'allowed': eligible(scores, listeners, threshold, ignore_unrated), 'blockers': blockers}
+    return {'allowed': eligible(scores, listeners, thresholds, ignore_unrated), 'blockers': blockers}
 
 
 def get_ratings_matrix(song_ids, raters):

@@ -162,9 +162,9 @@
               <option value="off" {% if not ignore_unrated %}selected{% endif %}>{{ t('Block') }}</option>
             </select>
           </label>
-          <span id="preview-rule" class="hint">{% if listeners %}{{ t('Every rating must be ≥ {threshold}', threshold=threshold) }}{% else %}{{ t('Select friends to preview') }}{% endif %}</span>
+          <span id="preview-rule" class="hint">{% if listeners %}{{ t('Each listener uses their own minimum.') }}{% else %}{{ t('Select friends to preview') }}{% endif %}</span>
         </div>
-        <p class="hint">{{ t("Preview only. Uses the highest selected friend's minimum; changing this selection does not control the bot.") }}</p>
+        <p class="hint">{{ t("Preview only. Each selected listener uses their own minimum; this selection does not control the bot.") }}</p>
       </details>
     </form>
     <p class="hint">{{ t('You can edit only your own ratings and minimum. Other ratings are read-only.') }}</p>
@@ -247,7 +247,7 @@
                     </select>
                     <noscript><button type="submit">{{ t('Save') }}</button></noscript>
                   </form>
-                  <div class="rating-feedback"><span class="cell-status" role="status"></span><button type="button" class="undo-rating" hidden>{{ t('Undo') }}</button></div>
+                  <div class="rating-feedback"><span class="cell-status" role="status"></span></div>
                   </div>
                   {% else %}<span class="rating-value" data-score="{{ current_score if current_score is not none else 'unrated' }}" aria-label="{{ t('Rating by {name} for {title}', name=rater.display, title=song.title) }}">{{ current_score if current_score is not none else '—' }}</span>{% endif %}
                 </td>

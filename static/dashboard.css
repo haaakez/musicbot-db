@@ -167,7 +167,6 @@ meter::-moz-meter-bar { background: var(--accent); }
 
 .cell-status { color: var(--muted); }
 .cell-status.error { color: var(--danger); }
-.undo-rating { min-height: 22px; padding: 0 4px; font-size: 11px; background: var(--raised); color: var(--accent); border-color: transparent; }
 .preview-cell { min-width: 200px; max-width: 280px; font-size: 13px; }
 .qualifies { color: var(--accent); }
 .blocked { color: var(--danger); }
@@ -225,4 +224,3 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .rating-editor .rating-form { flex: 1; min-width: 60px; }
 .rating-editor .rating-feedback { flex: 0 0 auto; margin: 0; }
 .rating-editor .cell-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.rating-editor .undo-rating[hidden] { display: inline-flex !important; visibility: hidden; pointer-events: none; }

@@ -25,14 +25,13 @@ async function postForm(form, data) {
 
 function previewSelection() {
   const listeners = [...filters.querySelectorAll('[name=listener]:checked')].map(input => input.value);
-  const threshold = Math.max(0, ...listeners.map(id => users.get(id).threshold));
-  return {listeners, threshold, ignoreUnrated: filters.elements.ignore_unrated.value === 'on'};
+  return {listeners, ignoreUnrated: filters.elements.ignore_unrated.value === 'on'};
 }
 
 function updatePreviews() {
-  const {listeners, threshold, ignoreUnrated} = previewSelection();
+  const {listeners, ignoreUnrated} = previewSelection();
   document.getElementById('preview-rule').textContent = listeners.length
-    ? text('Every rating must be ≥ {threshold}; unrated {rule}', {threshold, rule: text(ignoreUnrated ? 'allowed' : 'blocked')})
+    ? listeners.map(id => `${users.get(id).name}: ≥ ${users.get(id).threshold}`).join(' · ')
     : text('Select friends to preview');
   for (const row of rows) {
     const cell = row.querySelector('[data-preview]');
@@ -46,6 +45,7 @@ function updatePreviews() {
     for (const id of listeners) {
       const score = scores[id];
       const name = users.get(id).name;
+      const threshold = users.get(id).threshold;
       if (score === -1) blockers.push(text('{name}: veto', {name}));
       else if (score === undefined && !ignoreUnrated) blockers.push(text('{name}: unrated', {name}));
       else if (score !== undefined && score < threshold) blockers.push(text('{name}: {score} below {threshold}', {name, score, threshold}));
@@ -91,15 +91,12 @@ for (const form of document.querySelectorAll('.rating-form')) {
   const row = form.closest('[data-song-id]');
   const cell = form.closest('.rating-cell');
   const feedback = cell.querySelector('.cell-status');
-  const undo = cell.querySelector('.undo-rating');
   let saved = select.value;
-  let undoValue = null;
   let busy = false;
-  async function save(value, isUndo = false) {
+  async function save(value) {
     if (busy) return;
     busy = true;
     select.disabled = true;
-    undo.disabled = true;
     feedback.textContent = '';
     feedback.classList.remove('error');
     // FormData omits disabled selects, so set the intended value explicitly.
@@ -114,8 +111,6 @@ for (const form of document.querySelectorAll('.rating-form')) {
       const scores = state.ratings[row.dataset.songId];
       if (result.score === null) delete scores[form.dataset.userId];
       else scores[form.dataset.userId] = result.score;
-      undoValue = isUndo ? null : valueOf(result.previous);
-      undo.hidden = isUndo || undoValue === saved;
       feedback.textContent = '';
       const count = result.progress[form.dataset.userId] || 0;
       for (const element of document.querySelectorAll('[data-progress-user]')) {
@@ -136,13 +131,11 @@ for (const form of document.querySelectorAll('.rating-form')) {
       statusLine.classList.add('error');
     } finally {
       select.disabled = false;
-      undo.disabled = false;
       busy = false;
     }
   }
   select.addEventListener('change', () => save(select.value));
   form.addEventListener('submit', event => { event.preventDefault(); save(select.value); });
-  undo.addEventListener('click', () => { if (undoValue !== null) save(undoValue, true); });
 }
 
 for (const form of document.querySelectorAll('.threshold-form')) {

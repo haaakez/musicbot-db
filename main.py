@@ -382,14 +382,14 @@ def load_radio_data(user_ids, guild_id):
             f"SELECT song_id, user_id, score FROM ratings WHERE user_id IN ({placeholders})",
             tuple(user_ids)).fetchall()
         thresholds = conn.execute(
-            f"SELECT min_rating FROM user_thresholds WHERE user_id IN ({placeholders})",
+            f"SELECT user_id, min_rating FROM user_thresholds WHERE user_id IN ({placeholders})",
             tuple(user_ids)).fetchall()
         setting = conn.execute("SELECT ignore_unrated FROM guild_settings WHERE guild_id = ?",
                                (guild_id,)).fetchone()
     ratings = {}
     for song_id, user_id, score in rows:
         ratings.setdefault(song_id, {})[user_id] = score
-    return songs, ratings, max((row[0] for row in thresholds), default=0), bool(setting[0]) if setting else True
+    return songs, ratings, dict(thresholds), bool(setting[0]) if setting else True
 
 
 async def find_and_play_random_song(guild: discord.Guild, voice_channel, text_channel):
@@ -476,7 +476,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
                                     "held back for five minutes; b!radio retries them immediately.")
         else:
             await text_channel.send(f"radio stopped: no songs meet the listener ratings "
-                                    f"(minimum {threshold:g}; unrated {'allowed' if ignore_unrated else 'blocked'}). "
+                                    f"(personal minimums; unrated {'allowed' if ignore_unrated else 'blocked'}). "
                                     "check -1 ratings, b!minrating, and b!unrated.")
 
 @bot.event
@@ -1127,7 +1127,7 @@ async def radioinfo(ctx):
     for uid in listeners:
         member = ctx.guild.get_member(uid)
         lines.append(f"{discord.utils.escape_markdown(member.name if member else str(uid))}: minimum {limits.get(uid, 0):g}")
-    lines.extend([f"active minimum: {threshold:g}", f"unrated: {'allowed' if settings['ignore_unrated'] else 'blocked'}",
+    lines.extend(["each listener uses their own minimum", f"unrated: {'allowed' if settings['ignore_unrated'] else 'blocked'}",
                   f"eligible songs: {eligible_count}/{len(songs)}",
                   f"temporarily unavailable: {sum(expiry > time.monotonic() for expiry in unavailable_songs.get(ctx.guild.id, {}).values())}",
                   f"recent track end: {recent_end_reasons.get(ctx.guild.id, 'none')}"])

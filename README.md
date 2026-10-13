@@ -81,7 +81,7 @@ playlist links queue all returned tracks. text searches use the first result. `b
 
 ratings: **-1, 0, 1, 2, 3**. missing ratings are separate from 0.
 
-radio uses the highest minimum among listeners. every existing rating must meet it. ratings of 1, 3, and 2 pass at a minimum of 1, but fail at 2. **-1 blocks a song while that person is listening.**
+radio checks each listener’s rating against that person’s own minimum. for example, a rating of 1 with a minimum of 1 and a rating of 3 with a minimum of 3 both pass. averages are not used for eligibility. **-1 blocks a song while that person is listening.**
 
 `b!unrated on` allows missing ratings; `off` requires everyone to rate the song. manual requests bypass these rules. radio favours less-played songs and cycles through the eligible library. when every matching song has played, it starts another cycle. a single eligible song repeats. unavailable tracks are skipped for five minutes; `b!radio` retries them immediately.
 
@@ -114,7 +114,7 @@ b!play amsearch:<query>
 
 “bot settings” controls ratings in the now-playing embed, the track in voice-channel status, and whether radio allows unrated songs. settings are saved per server and match the commands above. display updates apply within five seconds. voice status needs the bot’s “set voice channel status” permission.
 
-- english and russian, inline saves with undo, and per-person progress.
+- english and russian, inline saves, and per-person progress.
 - sorting by title, plays, last played, and rating coverage.
 - listening preview showing who blocks a track and why.
 - “everyone likes”: everyone rated 2 or 3.
