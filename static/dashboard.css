@@ -238,6 +238,5 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .rating-editor { justify-content: center; }
 .rating-editor .rating-form { flex: 0 0 68px; min-width: 0; }
 .rating-form select { width: 68px; min-width: 0; height: 26px; min-height: 26px; padding: 0 4px; font-size: 16px; line-height: 20px; }
-.table-wrap .my-rating .rating-form select[data-score] { background: transparent; }
-.table-wrap .my-rating .threshold-form select { background: #303c46; }
+.table-wrap .my-rating .rating-form select[data-score='unrated'] { background: var(--raised); }
 .rating-form option { background: var(--raised); color: var(--text); }
