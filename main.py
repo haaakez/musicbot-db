@@ -17,12 +17,14 @@ from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
 from preferences import setup_settings, read_settings, write_settings, register_guild
 from presentation import TrackPresentation
-from source_resolution import resolve_tracks
+from source_resolution import resolve_tracks, manual_results
 from backup_db import maintain_backups
 from runtime_status import maintain_status
 from command_help import COMMANDS
 
 from library_metadata import setup_metadata
+
+from playback_store import setup_playback, record_start, record_end, maintain_controls
 
 DB_NAME = "music_bot.db"
 
@@ -74,6 +76,7 @@ def setup_db():
     )''')
     setup_users(conn)
     setup_metadata(conn)
+    setup_playback(conn)
     setup_settings(conn)
     c.close()
     conn.commit()
@@ -231,9 +234,90 @@ def import_songs_from_txt():
     with open('songs.txt', 'w', encoding='utf-8') as f: pass
     return count
 
-class RatingView(View):
-    def __init__(self, song_id, title):
+async def control_playback(guild_id, action, expected):
+    guild = bot.get_guild(guild_id)
+    player = guild.voice_client if guild else None
+    if not player or not player.connected or not player.current:
+        raise ValueError('Nothing is playing.')
+    if player.current.encoded != expected:
+        raise ValueError('The track changed. Refresh and try again.')
+    if action == 'toggle_pause':
+        await player.pause(not player.paused)
+    elif action == 'skip':
+        await player.skip(force=True)
+    elif action == 'replay':
+        if not player.current.is_seekable:
+            raise ValueError('This track cannot be replayed.')
+        await player.seek(0)
+        if player.paused:
+            await player.pause(False)
+    else:
+        raise ValueError('Unknown playback control.')
+    await sync_playback.refresh(guild_id)
+
+
+class TrackControls(View):
+    def __init__(self, encoded):
         super().__init__(timeout=None)
+        self.encoded = encoded
+
+    async def control(self, interaction, action):
+        voice = interaction.user.voice
+        if not voice or not sync_playback.contains(interaction.guild_id, voice.channel.id):
+            return await interaction.response.send_message('join a linked voice channel first.', ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await control_playback(interaction.guild_id, action, self.encoded)
+            await interaction.followup.send('done.', ephemeral=True)
+        except Exception as error:
+            await interaction.followup.send(str(error), ephemeral=True)
+
+    @discord.ui.button(label='pause / resume', style=discord.ButtonStyle.secondary, row=1)
+    async def toggle_pause_button(self, interaction, button):
+        await self.control(interaction, 'toggle_pause')
+
+    @discord.ui.button(label='skip', style=discord.ButtonStyle.secondary, row=1)
+    async def skip_track_button(self, interaction, button):
+        await self.control(interaction, 'skip')
+
+    @discord.ui.button(label='replay', style=discord.ButtonStyle.secondary, row=1)
+    async def replay_track_button(self, interaction, button):
+        await self.control(interaction, 'replay')
+
+
+class SearchChoice(View):
+    def __init__(self, requester, tracks):
+        super().__init__(timeout=60)
+        self.requester, self.tracks, self.chosen = requester, tracks[:5], None
+        options = []
+        for i, track in enumerate(self.tracks):
+            seconds = int(track.length or 0) // 1000
+            options.append(discord.SelectOption(label=track.title[:100], value=str(i),
+                description=f'{track.author} · {seconds//60}:{seconds%60:02} · {track.source}'[:100]))
+        select = discord.ui.Select(placeholder='select a recording', options=options)
+        select.callback = self.choose
+        self.add_item(select)
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.requester:
+            await interaction.response.send_message('this selection belongs to the requester.', ephemeral=True)
+            return False
+        return True
+
+    async def choose(self, interaction):
+        self.chosen = self.tracks[int(interaction.data['values'][0])]
+        await interaction.response.edit_message(content=f'selected: {self.chosen.title}', view=None)
+        self.stop()
+
+    @discord.ui.button(label='cancel', style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction, button):
+        await interaction.response.edit_message(content='request cancelled.', view=None)
+        self.stop()
+
+
+class RatingView(TrackControls):
+    def __init__(self, song_id, title, encoded):
+        super().__init__(encoded)
         self.song_id = song_id
         self.title = title
 
@@ -445,7 +529,6 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     guild_id = player.guild.id
     if player is not bot.get_guild(guild_id).voice_client:
         return
-    await sync_playback.refresh(guild_id, restart=True)
     channel = bound_channels.get(guild_id)
 
     current_play_count = 0
@@ -459,7 +542,7 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
         current_play_count = (existing_id[0][1] or 0) + 1
         song_id = existing_id[0][0]
         run_query("""UPDATE songs SET
-                    title = CASE WHEN title IS NULL OR TRIM(title) = '' OR title = url THEN ? ELSE title END,
+                    title = CASE WHEN title IS NULL OR TRIM(title) = '' OR title = url OR LOWER(title) = 'unknown title' THEN ? ELSE title END,
                     artwork_url = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?""",
                   (track.title, track.artwork, current_play_count, song_id))
     else:
@@ -473,16 +556,18 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     if song_id is not None:
         track.extras = {**dict(track.extras), 'song_id': song_id}
 
+    await asyncio.to_thread(record_start, DB_NAME, guild_id, track, song_id)
+    await sync_playback.refresh(guild_id, restart=True)
     if channel:
         await cleanup_player_message(guild_id)
         settings = await asyncio.to_thread(read_settings, DB_NAME, guild_id)
         embed = await asyncio.to_thread(presentation.build_embed, track, current_play_count, song_id, settings['embed_ratings'])
 
         if song_id is not None:
-            view = RatingView(song_id, track.title)
+            view = RatingView(song_id, track.title, track.encoded)
             msg = await channel.send(embed=embed, view=view)
         else:
-            msg = await channel.send(embed=embed)
+            msg = await channel.send(embed=embed, view=TrackControls(track.encoded))
 
         history = recent_track_messages.setdefault(guild_id, [])
         history.append(msg)
@@ -513,6 +598,8 @@ async def advance_queue(payload):
     if player.current and payload.track and player.current.encoded != payload.track.encoded:
         return
 
+    if payload.track:
+        await asyncio.to_thread(record_end, DB_NAME, player.guild.id, payload.track, str(payload.reason).lower())
     recent_end_reasons[player.guild.id] = str(payload.reason)
     print(f"track ended in {player.guild.id}: {payload.track.title if payload.track else 'unknown'}; reason={payload.reason}")
     if str(payload.reason).upper() == "REPLACED": return
@@ -560,6 +647,7 @@ async def on_wavelink_track_exception(payload: wavelink.TrackExceptionEventPaylo
     if not guild or payload.player is not guild.voice_client:
         return
     message = str(payload.exception.get('message') or payload.exception.get('cause') or 'stream failed')
+    await asyncio.to_thread(record_end, DB_NAME, guild.id, payload.track, 'failed')
     await mark_playback_failure(payload.player, payload.track, message)
     channel = bound_channels.get(guild.id)
     if channel:
@@ -584,9 +672,12 @@ async def help(ctx):
     embed = discord.Embed(title='commands', description=commands_list, color=EMBED_BG)
     await ctx.send(embed=embed)
 
-@bot.command(aliases=['p'])
+@bot.hybrid_command(aliases=['p'])
 async def play(ctx, *, search: str):
-    if not ctx.message.author.voice:
+    """find and queue a recording or playlist."""
+    if ctx.interaction:
+        await ctx.defer()
+    if not ctx.author.voice:
         return await ctx.send(embed=discord.Embed(description="You must be in a voice channel first.", color=EMBED_RED))
 
     bound_channels[ctx.guild.id] = ctx.channel
@@ -602,12 +693,25 @@ async def play(ctx, *, search: str):
         return await ctx.send(embed=discord.Embed(description="Please provide a valid song name or url.", color=EMBED_RED))
 
     try:
-        tracks = await search_tracks(resolved_query)
+        tracks = await manual_results(resolved_query, wavelink.Pool.get_node("primary"))
         if not tracks:
             return await ctx.send(embed=discord.Embed(description="Could not find that track.", color=EMBED_RED))
     except Exception as e:
         return await ctx.send(embed=discord.Embed(description=f"Error searching for track: {e}", color=EMBED_RED))
 
+    if not isinstance(tracks, wavelink.Playlist) and not is_url(resolved_query) and len(tracks) > 1:
+        chooser = SearchChoice(ctx.author.id, tracks)
+        message = await ctx.send('select a recording (60 seconds):', view=chooser)
+        await chooser.wait()
+        if chooser.chosen is None:
+            await message.edit(content='request cancelled or timed out.', view=None)
+            return
+        tracks = [chooser.chosen]
+    if not ctx.author.voice or (ctx.voice_client and not sync_playback.contains(ctx.guild.id, ctx.author.voice.channel.id)):
+        return await ctx.send('join a linked voice channel to queue this track.')
+    vc = ctx.voice_client
+    if not vc or not vc.connected:
+        return await ctx.send('the bot disconnected. request the track again.')
     items = tracks.tracks if isinstance(tracks, wavelink.Playlist) else [tracks[0]]
     for item in items:
         item.extras = {**dict(item.extras), 'requester_name': ctx.author.display_name,
@@ -620,8 +724,9 @@ async def play(ctx, *, search: str):
     embed = discord.Embed(description=f"Queued {len(items)} track(s), starting with **{track.title}**", color=EMBED_BG)
     await ctx.send(embed=embed, delete_after=10)
 
-@bot.command(aliases=['s'])
+@bot.hybrid_command(aliases=['s'])
 async def skip(ctx):
+    """skip the current track."""
     vc: wavelink.Player = ctx.voice_client
     if vc and vc.playing:
         await vc.skip(force=True)
@@ -644,8 +749,9 @@ async def stop(ctx):
     await presentation.clear(ctx.guild.id)
     await ctx.send(embed=discord.Embed(description="Stopped the music and cleared the queue", color=EMBED_BG))
 
-@bot.command(name='np')
+@bot.hybrid_command(name='np')
 async def now_playing(ctx):
+    """show the current track."""
     vc: wavelink.Player = ctx.voice_client
     if not vc or not vc.playing:
         return await ctx.send(embed=discord.Embed(description="Nothing is playing right now.", color=EMBED_BG))
@@ -660,8 +766,26 @@ async def now_playing(ctx):
     embed = await asyncio.to_thread(presentation.build_embed, track, plays, song_id, settings['embed_ratings'])
     await ctx.send(embed=embed)
 
-@bot.command(aliases=['q'])
+@bot.hybrid_command()
+async def replay(ctx):
+    """replay the current track from the start."""
+    if not ctx.voice_client or not ctx.voice_client.current:
+        return await ctx.send('nothing is playing.')
+    await control_playback(ctx.guild.id, 'replay', ctx.voice_client.current.encoded)
+    await ctx.send('replaying the current track.')
+
+
+@bot.hybrid_command()
+async def history(ctx):
+    """show the last ten playback attempts."""
+    rows = await asyncio.to_thread(run_query, 'SELECT title,result FROM playback_history WHERE guild_id=? ORDER BY id DESC LIMIT 10', (ctx.guild.id,), True)
+    lines = [f'{i}. {discord.utils.escape_markdown(title[:180])} · {result}' for i, (title, result) in enumerate(rows or [], 1)]
+    await ctx.send(embed=discord.Embed(title='recent playback', description='\n'.join(lines) or 'no history yet.', color=EMBED_BG))
+
+
+@bot.hybrid_command(aliases=['q'])
 async def queue(ctx, page: int = 1):
+    """show the manual queue."""
     vc = ctx.voice_client
     if not vc:
         return await ctx.send("The bot is not connected.")
@@ -767,8 +891,9 @@ async def loop(ctx, mode: str = None):
 
     await ctx.send(embed=discord.Embed(description=msg, color=EMBED_BG))
 
-@bot.command(aliases=['pa'])
+@bot.hybrid_command(aliases=['pa'])
 async def pause(ctx):
+    """pause playback."""
     vc: wavelink.Player = ctx.voice_client
     if not vc or not vc.playing:
         return await ctx.send(embed=discord.Embed(description="Nothing is playing right now.", color=EMBED_RED))
@@ -776,8 +901,9 @@ async def pause(ctx):
     await sync_playback.refresh(ctx.guild.id)
     await ctx.send(embed=discord.Embed(description="Paused the current track", color=EMBED_BG))
 
-@bot.command(aliases=['re'])
+@bot.hybrid_command(aliases=['re'])
 async def resume(ctx):
+    """resume playback."""
     vc: wavelink.Player = ctx.voice_client
     if not vc or not vc.paused:
         return await ctx.send(embed=discord.Embed(description="Nothing is paused right now.", color=EMBED_RED))
@@ -799,14 +925,15 @@ async def leave(ctx):
         await vc.disconnect()
         await ctx.send(embed=discord.Embed(description="Disconnected from the voice channel", color=EMBED_BG))
 
-@bot.command(aliases=['r'])
+@bot.hybrid_command(aliases=['r'])
 async def radio(ctx):
-    if not ctx.message.author.voice:
+    """start radio using listener ratings."""
+    if not ctx.author.voice:
         return await ctx.send(embed=discord.Embed(description="Join a voice channel first.", color=EMBED_RED))
 
     bound_channels[ctx.guild.id] = ctx.channel
     vc: wavelink.Player = ctx.voice_client
-    if not vc: await ctx.message.author.voice.channel.connect(cls=functools.partial(wavelink.Player, nodes=[wavelink.Pool.get_node("primary")]))
+    if not vc: await ctx.author.voice.channel.connect(cls=functools.partial(wavelink.Player, nodes=[wavelink.Pool.get_node("primary")]))
 
     vc = ctx.voice_client
     vc.queue.mode = wavelink.QueueMode.normal
@@ -923,7 +1050,7 @@ async def add(ctx, *, query: str):
         try:
             existing = run_query("SELECT song_id FROM songs WHERE url = ?", (query,), fetch=True)
             if existing: return await ctx.send(embed=discord.Embed(description="This link is already in the database.", color=EMBED_RED))
-            run_query("INSERT INTO songs (title, url, play_count) VALUES (?, ?, 0)", ("Unknown Title", query))
+            run_query("INSERT INTO songs (title, url, play_count) VALUES (?, ?, 0)", (None, query))
             await ctx.send(embed=discord.Embed(description=f"Added link: {query}", color=EMBED_BG))
         except Exception as e:
             await ctx.send(embed=discord.Embed(description=f"Error adding link: {e}", color=EMBED_RED))
@@ -1004,7 +1131,7 @@ async def check_listener(ctx):
     if ctx.guild is None:
         return False
     controls = {'play', 'radio', 'skip', 'stop', 'leave', 'loop', 'pause', 'resume',
-                'remove', 'move', 'shuffle', 'clear', 'seek', 'unrated', 'sync', 'unsync', 'embedratings', 'voicestatus'}
+                'remove', 'move', 'shuffle', 'clear', 'seek', 'replay', 'unrated', 'sync', 'unsync', 'embedratings', 'voicestatus'}
     if ctx.command.name in controls:
         voice = ctx.author.voice
         if not voice or (ctx.voice_client and not sync_playback.contains(ctx.guild.id, voice.channel.id)):
@@ -1025,11 +1152,24 @@ async def on_command_error(ctx, error):
         await ctx.send("That command failed. Check the bot log for details.")
 
 
+async def slash_setup():
+    if os.environ.get('ENABLE_SLASH_COMMANDS', 'false').lower() in ('true', '1', 'on'):
+        try:
+            await bot.tree.sync()
+        except discord.HTTPException as error:
+            print(f'slash command registration failed; prefix commands remain available: {error}')
+
+
+bot.setup_hook = slash_setup
+
+
 async def main():
+    await asyncio.to_thread(run_query, "UPDATE playback_history SET result='interrupted',ended_at=? WHERE result='playing'", (time.time(),))
     async with bot:
         await sync_playback.start()
         display_task = asyncio.create_task(presentation.maintain())
         backup_task = asyncio.create_task(maintain_backups(DB_NAME))
+        control_task = asyncio.create_task(maintain_controls(DB_NAME, control_playback))
         status_task = asyncio.create_task(maintain_status(bot, sync_playback, DB_NAME,
             radio_active, radio_waiting, find_and_play_random_song))
         try:
@@ -1038,7 +1178,8 @@ async def main():
             display_task.cancel()
             backup_task.cancel()
             status_task.cancel()
-            await asyncio.gather(display_task, backup_task, status_task, return_exceptions=True)
+            control_task.cancel()
+            await asyncio.gather(display_task, backup_task, status_task, control_task, return_exceptions=True)
             for guild in bot.guilds:
                 await presentation.clear(guild.id)
             await sync_playback.close()

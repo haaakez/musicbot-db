@@ -27,7 +27,7 @@ async def maintain_status(bot, sync, database, radio_active, radio_waiting, retr
                 await asyncio.to_thread(publish_status, database, guild.id, {
                     'discord': bot.is_ready(), 'lavalink': node_connected, 'voice': connected,
                     'channel': player.channel.name if connected and player.channel else None,
-                    'title': track.title if track else None, 'url': track.uri if track else None,
+                    'encoded': track.encoded if track else None, 'title': track.title if track else None, 'url': track.uri if track else None,
                     'source': track.source if track else None, 'paused': bool(player and player.paused),
                     'radio': bool(radio_active.get(guild.id)), 'waiting': radio_waiting.get(guild.id) if radio_active.get(guild.id) else None,
                     'listeners': len(sync.listeners(guild.id)) if connected else 0,

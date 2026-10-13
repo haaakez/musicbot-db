@@ -16,6 +16,8 @@ COMMANDS = [
     ('b!resume · b!re', 'Resume playback'),
     ('b!seek <seconds>', 'Seek within the current song'),
     ('b!loop [track|queue|off] · b!lp', 'Set queue repeat mode'),
+    ('b!replay', 'Replay the current song'),
+    ('b!history', 'Show recent playback history'),
     ('b!np', 'Show the current song'),
     ('b!minrating <0–3> · b!mr', 'Set your radio minimum'),
     ('b!unrated on|off', 'Allow or block missing ratings in radio'),

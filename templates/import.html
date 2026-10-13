@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="{{ language }}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ t('Bulk import') }}</title><link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}"></head>
+<body class="dashboard about-page">
+<header class="dashboard-heading"><h1>{{ t('Bulk import') }}</h1><div class="toolbar">{% include '_language.html' %}<a class="button secondary" href="{{ url_for('index') }}">dashboard</a></div></header>
+{% if imported is not none %}<p role="status">{{ t('Imported {count} songs.', count=imported) }}</p>{% endif %}
+{% if preview is not none %}
+<p>{{ t('Review entries before importing. Duplicates are unchecked. Existing recording links are always skipped.') }}</p>
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="confirm" value="1">
+<div class="import-preview"><table><thead><tr><th>{{ t('Import') }}</th><th>{{ t('Title') }}</th><th>{{ t('URL') }}</th><th>{{ t('Status') }}</th></tr></thead><tbody>
+{% for item in preview %}<tr><td><input type="checkbox" name="entry" value="{{ loop.index0 }}" {% if item.error %}disabled{% elif not item.duplicate %}checked{% endif %} aria-label="{{ t('Import entry {number}', number=loop.index) }}"></td><td>{{ item.title or t('Title pending playback') }}</td><td class="import-url">{{ item.url or '—' }}</td><td>{{ t(item.error) if item.error else t('Possible duplicate') if item.duplicate else t('Ready') }}</td></tr>{% endfor %}
+</tbody></table></div>
+<button type="submit">{{ t('Import selected') }}</button> <a href="{{ url_for('import_songs') }}">{{ t('Start again') }}</a>
+</form>
+{% else %}
+<p>{{ t('Paste one title or link per line, or upload a UTF-8 text/CSV file. CSV columns: title,url. Up to 5000 entries and 2 MB.') }}</p>
+<form method="post" enctype="multipart/form-data" class="import-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="entries">{{ t('Titles or links') }}</label><textarea id="entries" name="entries" rows="12"></textarea>
+<label for="import-file">{{ t('Text or CSV file') }}</label><input id="import-file" type="file" name="file" accept=".txt,.csv,.tsv,text/plain,text/csv">
+<button type="submit">{{ t('Preview import') }}</button>
+</form>
+{% endif %}
+</body></html>

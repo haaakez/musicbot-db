@@ -14,6 +14,7 @@
       <div class="toolbar">
         {% include "_language.html" %}
         <a class="button" href="{{ url_for('add_song') }}">{{ t('Add song') }}</a>
+        <a class="button secondary" href="{{ url_for('import_songs') }}">{{ t('Bulk import') }}</a>
         <form id="refresh-names" action="{{ url_for('refresh_usernames') }}" method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
@@ -28,6 +29,15 @@
       <span id="connection-status" role="status">{{ t('Checking connection…') }}</span>
       <span id="current-track"></span>
     </section>
+    <form id="playback-controls" class="toolbar" action="{{ url_for('playback_control_route') }}" method="post" data-result-url="{{ url_for('playback_request_route', request_id=0) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% for action, label in [('toggle_pause','Pause / resume'),('skip','Skip'),('replay','Replay')] %}<button type="submit" name="action" value="{{ action }}" disabled>{{ t(label) }}</button>{% endfor %}
+      <span id="playback-control-status" class="hint" role="status"></span>
+    </form>
+    <details class="listening-controls" id="recent-history" data-url="{{ url_for('history_route') }}">
+      <summary>{{ t('Recent playback history') }}</summary>
+      <div class="history-wrap"><table><thead><tr><th>{{ t('Title') }}</th><th>{{ t('Source') }}</th><th>{{ t('Requested by') }}</th><th>{{ t('Started') }}</th><th>{{ t('Status') }}</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+    </details>
     <section class="progress-list" aria-label="{{ t('Rating progress') }}">
       {% for rater in known_raters %}
         {% set count = progress.get(rater.user_id|string, 0) %}

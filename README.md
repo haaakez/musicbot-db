@@ -193,3 +193,31 @@ the dashboard shows discord, lavalink, and voice connection status, the current 
 “similar links” finds entries pointing to the same recording, including youtube short/watch/embed links and common tracking variations. it does not compare audio across different uploads. “new songs” shows additions from the last seven days; date-added sorting is also available. timestamps are recorded for new entries; existing entries with unknown dates are excluded from the new-songs view.
 
 search accepts titles, exact ids such as `#123`, full links, and partial links. full youtube links also match alternate url formats for the same video. “duplicate finder” lists possible duplicates by normalized link or similar title and shows the matching ids. review recordings before deleting: similar titles can belong to different versions, and ratings are not merged automatically.
+
+## playback controls and history
+
+now-playing messages include pause/resume, skip, and replay buttons. controls require a listener in a linked voice channel and apply only when that recording is current. dashboard controls are available to signed-in users and show whether the bot completed the action. replay seeks to the start without removing queued songs; live streams cannot be replayed.
+
+```text
+b!replay
+b!history
+```
+
+recent history is saved in sqlite: the dashboard shows the latest 50 entries for the selected server, and `b!history` shows ten. up to 500 entries per server are retained, including failed playback attempts. play counts still increment on track start.
+
+manual `b!play` searches offer up to five recordings to the requester, with a 60-second selection timeout. links and playlists are queued directly. radio keeps its automatic selection.
+
+## bulk import and metadata
+
+open “bulk import” to paste one title or link per line, or upload UTF-8 text, CSV, or TSV. CSV/TSV headers are `title,url`. the preview marks invalid entries and duplicate names/links, and you choose which entries to save. imports are limited to 5000 entries and 2 mb; preview confirmation expires after one hour. existing recording links are rechecked at confirmation and skipped without changing ratings.
+
+changing a song's recording link clears its old cover and, if the title was left unchanged, clears the old title for resolution on the next playback. manually supplied replacement titles are kept. alternate URL formats for the same recording preserve metadata. duplicate recording links and invalid play counts return a form error.
+
+## optional slash commands
+
+```bash
+export ENABLE_SLASH_COMMANDS=true
+python main.py
+```
+
+this registers `/play`, `/radio`, `/queue`, `/np`, `/history`, `/replay`, `/pause`, `/resume`, and `/skip` globally. discord must authorize the bot's application commands, and global registration can take time to appear. prefix commands continue to work. `/play` uses the same result selection as `b!play`. the flag controls registration on startup; turning it off does not unregister commands already published to discord.

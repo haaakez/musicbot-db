@@ -55,3 +55,17 @@ async def resolve_tracks(query, node, title=None):
         except Exception:
             log.warning('SoundCloud search failed; falling back to YouTube.', exc_info=True)
     return await search(f'ytmsearch:{query}')
+
+
+async def manual_results(query, node):
+    """Return choices for manual requests; radio continues using resolve_tracks."""
+    if urlsplit(query).hostname or SEARCH_PREFIX.match(query):
+        return await wavelink.Playable.search(query, source=None, node=node)
+    try:
+        tracks = await wavelink.Playable.search(f'scsearch:{query}', source=None, node=node)
+        match = best_match(tracks, query)
+        if match:
+            return [match] + [track for track in tracks if track.encoded != match.encoded][:4]
+    except Exception:
+        log.warning('Manual SoundCloud search failed; trying YouTube.', exc_info=True)
+    return await wavelink.Playable.search(f'ytmsearch:{query}', source=None, node=node)

@@ -344,6 +344,90 @@ RUSSIAN.update({
     'Possible duplicates by link or similar title. Review before deleting; different versions can have similar names.': 'возможные дубли по ссылке или похожему названию. проверьте перед удалением: разные версии могут называться похоже.',
 })
 
+RUSSIAN.update({'Bulk import': 'массовый импорт',
+ 'Review entries before importing. Duplicates are unchecked. Existing recording links are always skipped.': 'проверьте '
+                                                                                                            'записи '
+                                                                                                            'перед '
+                                                                                                            'импортом. '
+                                                                                                            'дубли '
+                                                                                                            'не '
+                                                                                                            'выбраны. '
+                                                                                                            'уже '
+                                                                                                            'добавленные '
+                                                                                                            'ссылки '
+                                                                                                            'на '
+                                                                                                            'запись '
+                                                                                                            'всегда '
+                                                                                                            'пропускаются.',
+ 'Paste one title or link per line, or upload a UTF-8 text/CSV file. CSV columns: title,url. Up to 5000 entries and 2 MB.': 'вставьте '
+                                                                                                                            'по '
+                                                                                                                            'одному '
+                                                                                                                            'названию '
+                                                                                                                            'или '
+                                                                                                                            'ссылке '
+                                                                                                                            'на '
+                                                                                                                            'строку '
+                                                                                                                            'либо '
+                                                                                                                            'загрузите '
+                                                                                                                            'файл '
+                                                                                                                            'utf-8. '
+                                                                                                                            'столбцы '
+                                                                                                                            'csv: '
+                                                                                                                            'title,url. '
+                                                                                                                            'до '
+                                                                                                                            '5000 '
+                                                                                                                            'записей '
+                                                                                                                            'и '
+                                                                                                                            '2 '
+                                                                                                                            'мб.',
+ 'Imported {count} songs.': 'добавлено треков: {count}.',
+ 'Import': 'импорт',
+ 'Import selected': 'добавить выбранные',
+ 'Import entry {number}': 'добавить запись {number}',
+ 'Start again': 'начать заново',
+ 'Titles or links': 'названия или ссылки',
+ 'Text or CSV file': 'текстовый или csv-файл',
+ 'Preview import': 'предпросмотр импорта',
+ 'Status': 'статус',
+ 'Possible duplicate': 'возможный дубль',
+ 'Ready': 'готово',
+ 'Import preview expired. Preview the file again.': 'предпросмотр устарел. загрузите файл заново.',
+ 'Use a UTF-8 text or CSV file.': 'используйте текстовый или csv-файл в utf-8.',
+ 'No entries found.': 'записи не найдены.',
+ 'Entry is too long.': 'запись слишком длинная.',
+ 'Use an http or https link.': 'используйте ссылку http или https.',
+ 'Invalid link.': 'неверная ссылка.',
+ 'This recording link is already in the library.': 'эта запись уже есть в базе.',
+ 'Play count must be a nonnegative integer.': 'число прослушиваний должно быть целым и неотрицательным.',
+ 'Pause / resume': 'пауза / продолжить',
+ 'Skip': 'пропустить',
+ 'Replay': 'повторить',
+ 'Recent playback history': 'история воспроизведения',
+ 'Source': 'источник',
+ 'Requested by': 'запросил',
+ 'Started': 'начало',
+ 'Sending…': 'отправка…',
+ 'Done': 'готово',
+ 'Nothing is playing.': 'ничего не играет.',
+ 'The track changed. Refresh and try again.': 'трек сменился. обновите страницу и повторите действие.',
+ 'Unknown playback control.': 'неизвестное действие.',
+ 'This track cannot be replayed.': 'этот трек нельзя повторить.',
+ 'Request expired.': 'время запроса истекло.',
+ 'No history yet.': 'истории пока нет.',
+ 'History unavailable.': 'история недоступна.',
+ 'playing': 'играет',
+ 'finished': 'завершён',
+ 'stopped': 'остановлен',
+ 'replaced': 'заменён',
+ 'failed': 'ошибка',
+ 'loadfailed': 'ошибка загрузки',
+ 'interrupted': 'прерван'})
+
+RUSSIAN.update({
+    'Replay the current song': 'повторить текущий трек',
+    'Show recent playback history': 'показать историю воспроизведения',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

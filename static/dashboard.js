@@ -5,6 +5,9 @@ const text = (key, values = {}) => (state.messages?.[key] || key.toLowerCase()).
 const filters = document.getElementById('filters');
 const statusLine = document.getElementById('save-status');
 const users = new Map(state.users.map(user => [user.id, user]));
+let liveEncoded = null;
+const playbackForm = document.getElementById('playback-controls');
+let controlsBusy = false;
 const rows = [...document.querySelectorAll('tr[data-song-id]')];
 const valueOf = score => score === null || score === undefined ? 'unrated' : String(score);
 
@@ -300,6 +303,8 @@ async function refreshRuntime() {
     const connection = document.getElementById('connection-status');
     const current = document.getElementById('current-track');
     current.replaceChildren();
+    liveEncoded = !result.stale && result.status?.voice ? result.status.encoded : null;
+    playbackForm.querySelectorAll('button').forEach(button => { button.disabled = controlsBusy || !liveEncoded; });
     if (result.stale) {
       connection.textContent = text('Bot offline or status outdated');
       connection.classList.add('error');
@@ -327,12 +332,84 @@ async function refreshRuntime() {
         ? `${text('Last backup')}: ${new Date(backup.last_success * 1000).toLocaleString()} · ${text('Interval')}: ${backup.interval_hours} ${text('hours')}`
         : text('No automatic backup recorded yet');
   } catch (_) {
+    liveEncoded = null;
+    playbackForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
     document.getElementById('connection-status').textContent = text('Status unavailable');
     document.getElementById('connection-status').classList.add('error');
     document.getElementById('current-track').replaceChildren();
   } finally {
     clearTimeout(timeout);
+    refreshHistory();
     setTimeout(refreshRuntime, 5000);
   }
 }
 refreshRuntime();
+
+
+playbackForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!liveEncoded || controlsBusy) return;
+  const action = event.submitter?.value;
+  const feedback = document.getElementById('playback-control-status');
+  const data = new FormData(playbackForm);
+  data.set('action', action);
+  data.set('expected', liveEncoded);
+  data.set('guild_id', botSettingsForm?.elements.guild_id.value || '');
+  controlsBusy = true;
+  playbackForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
+  feedback.textContent = text('Sending…');
+  feedback.classList.remove('error');
+  try {
+    const result = await postForm(playbackForm, data);
+    const deadline = Date.now() + 22000;
+    let completed = false;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const url = playbackForm.dataset.resultUrl.replace(/0$/, String(result.id));
+      const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store'});
+      const status = await response.json();
+      if (!response.ok || status.result === 'error') throw new Error(text(status.error || 'Request expired.'));
+      if (status.result === 'done') { completed = true; break; }
+    }
+    if (!completed) throw new Error(text('Request expired.'));
+    feedback.textContent = text('Done');
+    // Wait for the next heartbeat before allowing another action on an old track.
+    liveEncoded = null;
+  } catch (error) {
+    feedback.textContent = error.message;
+    feedback.classList.add('error');
+  } finally { controlsBusy = false; }
+});
+
+const historyPanel = document.getElementById('recent-history');
+let historyBusy = false;
+async function refreshHistory() {
+  if (!historyPanel.open || historyBusy) return;
+  historyBusy = true;
+  try {
+    const url = new URL(historyPanel.dataset.url, window.location.href);
+    url.searchParams.set('guild_id', botSettingsForm?.elements.guild_id.value || '');
+    const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store'});
+    if (!response.ok) throw new Error();
+    const result = await response.json();
+    const body = document.getElementById('history-rows');
+    body.replaceChildren();
+    for (const item of result.history) {
+      const row = document.createElement('tr');
+      for (const value of [item.title, item.source, item.requester, new Date(item.started_at * 1000).toLocaleString(), text(item.result)]) {
+        const cell = document.createElement('td');
+        cell.textContent = value || '—';
+        row.append(cell);
+      }
+      body.append(row);
+    }
+    if (!result.history.length) {
+      const row = body.insertRow();
+      const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = text('No history yet.');
+    }
+  } catch (_) {
+    const body = document.getElementById('history-rows'); body.replaceChildren();
+    const cell = body.insertRow().insertCell(); cell.colSpan = 5; cell.textContent = text('History unavailable.');
+  } finally { historyBusy = false; }
+}
+historyPanel.addEventListener('toggle', refreshHistory);

@@ -18,11 +18,15 @@ from identities import setup_users
 from preferences import setup_settings, read_settings, write_settings, read_backup_settings
 from radio import eligible
 from command_help import COMMANDS
+from bulk_import import parse_import
 
 from library_metadata import setup_metadata, link_identity, duplicate_matches
 
+from playback_store import setup_playback
+
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 2_100_000
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
@@ -89,6 +93,7 @@ def ensure_db_schema():
     
     setup_users(conn)
     setup_metadata(conn)
+    setup_playback(conn)
     setup_settings(conn)
     conn.commit()
     conn.close()
@@ -542,6 +547,98 @@ def runtime_status_route():
     return response
 
 
+@app.route('/playback_control', methods=['POST'])
+@login_required
+def playback_control_route():
+    guild_id = request.form.get('guild_id', '')
+    action = request.form.get('action', '')
+    if action not in ('toggle_pause', 'skip', 'replay'):
+        return rating_error('Unknown playback control.', 400)
+    runtime = query_db('SELECT updated_at,payload FROM bot_runtime WHERE guild_id=?', (guild_id,), one=True)
+    if not runtime or time.time()-runtime['updated_at'] > 20:
+        return rating_error('Bot offline or status outdated', 409)
+    status = json.loads(runtime['payload'])
+    expected = request.form.get('expected', '')
+    if not status.get('voice') or not expected or expected != status.get('encoded'):
+        return rating_error('The track changed. Refresh and try again.', 409)
+    conn = get_db()
+    with conn:
+        cursor = conn.execute('INSERT INTO playback_requests(guild_id,action,expected,created_at) VALUES(?,?,?,?)',
+                             (guild_id,action,expected,time.time()))
+    return jsonify(id=cursor.lastrowid)
+
+
+@app.route('/playback_request/<int:request_id>')
+@login_required
+def playback_request_route(request_id):
+    row = query_db('SELECT result,error FROM playback_requests WHERE id=?', (request_id,), one=True)
+    return jsonify(dict(row)) if row else (jsonify(error='Request expired.'), 404)
+
+
+@app.route('/history')
+@login_required
+def history_route():
+    guild_id = request.args.get('guild_id', '')
+    rows = query_db('SELECT id,title,url,source,requester,started_at,result FROM playback_history WHERE guild_id=? ORDER BY id DESC LIMIT 50', (guild_id,))
+    return jsonify(history=[dict(row) for row in rows])
+
+
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_songs():
+    token = None
+    preview = None
+    if request.method == 'POST':
+        owner = session.setdefault('import_owner', secrets.token_urlsafe(24))
+        if request.form.get('confirm'):
+            token = request.form.get('token', '')
+            row = query_db('SELECT payload,created_at FROM import_previews WHERE token=? AND owner=?', (token,owner), one=True)
+            if not row or time.time()-row['created_at'] > 3600:
+                abort(400, t('Import preview expired. Preview the file again.'))
+            preview = json.loads(row['payload'])
+            selected = {int(x) for x in request.form.getlist('entry') if x.isdecimal()}
+            conn = get_db()
+            imported = 0
+            with conn:
+                conn.execute('BEGIN IMMEDIATE')
+                # Recheck duplicates since the preview; never overwrite existing ratings.
+                current = conn.execute('SELECT title,url FROM songs').fetchall()
+                links = {link_identity(song['url']) for song in current if song['url']}
+                names = {normalize_search(song['title']) for song in current if song['title']}
+                for index in sorted(selected):
+                    if index >= len(preview):
+                        continue
+                    item = preview[index]
+                    if item['error']:
+                        continue
+                    title,url = item['title'],item['url']
+                    if url and link_identity(url) in links or not url and title and normalize_search(title) in names:
+                        continue
+                    conn.execute('INSERT INTO songs(title,url) VALUES(?,?)', (title,url))
+                    imported += 1
+                    if url: links.add(link_identity(url))
+                    if title: names.add(normalize_search(title))
+                conn.execute('DELETE FROM import_previews WHERE token=?', (token,))
+            return render_template('import.html', preview=None, token=None, imported=imported)
+        text = request.form.get('entries', '')
+        file = request.files.get('file')
+        if file and file.filename:
+            try:
+                text = file.read(2_000_001).decode('utf-8-sig')
+            except UnicodeDecodeError:
+                abort(400, t('Use a UTF-8 text or CSV file.'))
+        try:
+            preview = parse_import(text, query_db('SELECT title,url FROM songs'))
+        except (ValueError, TypeError) as error:
+            abort(400, str(error))
+        if not preview:
+            abort(400, t('No entries found.'))
+        token = secrets.token_urlsafe(24)
+        execute_db('DELETE FROM import_previews WHERE created_at<?', (time.time()-3600,))
+        execute_db('INSERT INTO import_previews VALUES(?,?,?,?)', (token,owner,time.time(),json.dumps(preview)))
+    return render_template('import.html', preview=preview, token=token, imported=None)
+
+
 @app.route('/backup_settings', methods=['POST'])
 @login_required
 def backup_settings_route():
@@ -631,17 +728,32 @@ def rating_error(message, status):
     abort(status, t(message))
 
 
+def valid_song_url(url):
+    if not url:
+        return True
+    try:
+        return len(url) <= 2048 and urlsplit(url).scheme in ('http', 'https') and bool(urlsplit(url).hostname)
+    except ValueError:
+        return False
+
+
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add_song():
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         url = request.form.get('url', '').strip() or None
+        if not url and title.startswith(('http://', 'https://')):
+            url, title = title, ''
         if title or url:
+            if not valid_song_url(url):
+                return render_template('song_form.html', song={'title':title, 'url':url, 'play_count':0}, action='Add', error=t('Use an http or https link.')), 400
+            if url and any(link_identity(url) == link_identity(row['url']) for row in query_db('SELECT url FROM songs WHERE url IS NOT NULL')):
+                return render_template('song_form.html', song={'title': title, 'url': url, 'play_count': 0}, action='Add', error=t('This recording link is already in the library.')), 409
             execute_db('INSERT INTO songs (title, url, play_count, last_played) VALUES (?, ?, 0, NULL)', (title or None, url))
             return redirect(url_for('index'))
         abort(400, t('Enter a title or link.'))
-    return render_template('song_form.html', song=None, action='Add')
+    return render_template('song_form.html', song=None, action='Add', error=None)
 
 
 @app.route('/edit/<int:song_id>', methods=['GET', 'POST'])
@@ -654,10 +766,24 @@ def edit_song(song_id):
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         url = request.form.get('url', '').strip() or None
+        if not url and title.startswith(('http://', 'https://')):
+            url, title = title, ''
         if not title and not url:
             abort(400, t('Enter a title or link.'))
-        play_count = int(request.form.get('play_count', song['play_count'] or 0))
-        execute_db('UPDATE songs SET title = ?, url = ?, play_count = ? WHERE song_id = ?', (title or None, url, play_count, song_id))
+        if not valid_song_url(url):
+            return render_template('song_form.html', song={'title':title, 'url':url, 'play_count':song['play_count']}, action='Edit', error=t('Use an http or https link.')), 400
+        try:
+            play_count = int(request.form.get('play_count', song['play_count'] or 0))
+            if play_count < 0: raise ValueError()
+        except ValueError:
+            return render_template('song_form.html', song=song, action='Edit', error=t('Play count must be a nonnegative integer.')), 400
+        if url and any(link_identity(url) == link_identity(row['url']) for row in query_db('SELECT url FROM songs WHERE song_id!=? AND url IS NOT NULL', (song_id,))):
+            return render_template('song_form.html', song={'title':title, 'url':url, 'play_count':play_count}, action='Edit', error=t('This recording link is already in the library.')), 409
+        changed_recording = link_identity(url) != link_identity(song['url'])
+        if changed_recording and url and title == (song['title'] or ''):
+            title = ''
+        execute_db('UPDATE songs SET title=?,url=?,play_count=?,artwork_url=CASE WHEN ? THEN NULL ELSE artwork_url END WHERE song_id=?',
+                   (title or None,url,play_count,changed_recording,song_id))
         return redirect(url_for('index'))
 
     return render_template('song_form.html', song=song, action='Edit')

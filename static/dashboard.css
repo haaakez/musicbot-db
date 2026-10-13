@@ -205,3 +205,9 @@ td.my-rating { background: #26313a; }
 .command-reference code { font: inherit; color: var(--accent); white-space: nowrap; }
 
 .duplicate-matches { font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 3px; }
+.import-form { display: grid; gap: 8px; }
+textarea { font: inherit; color: var(--text); background: var(--raised); border: 0; padding: 8px; resize: vertical; width: 100%; }
+.import-preview, .history-wrap { overflow: auto; max-height: 60vh; margin: 10px 0; }
+.import-preview table, .history-wrap table { min-width: 700px; }
+.import-preview td:nth-child(2), .import-preview th:nth-child(2), .history-wrap td:nth-child(2), .history-wrap th:nth-child(2) { position: static; max-width: none; }
+.import-url { overflow-wrap: anywhere; max-width: 400px; }
