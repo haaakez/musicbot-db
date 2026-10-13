@@ -259,3 +259,19 @@ with discord login configured, password login is disabled and only allowlisted a
 “remember me” keeps login for 30 days by default, including after dashboard restarts when the secret key remains the same. unchecking it uses a browser-session cookie with a 12-hour server expiry. logout clears the browser session. remembered login requires the browser to retain cookies.
 
 “refresh” reloads dashboard data with the applied filters and selected server. it waits for active rating saves and playback actions before allowing a reload.
+
+## temporary sharing for friends
+
+configure discord client id/secret, `DISCORD_ALLOWED_USER_IDS`, and a permanent `FLASK_SECRET_KEY` in `.env` first. the launcher refuses to expose the password-only dashboard. the callback URL is set automatically for this temporary process.
+
+```bash
+nix-shell
+pip install -r requirements.txt
+./share-dashboard.sh
+```
+
+the script loads `.env`, opens a [cloudflare quick tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/), and starts a separate gunicorn dashboard on localhost. it prints a temporary https address and its exact oauth callback. add that callback under oauth2 → redirects in the discord developer portal, save, then share the dashboard address with your allowed friends.
+
+keep the terminal open. ctrl+c stops the tunnel and its dashboard, while the bot and lavalink continue running. the URL changes every run, so register the new callback each time. a new hostname also means signing in again, even if login was remembered on the previous hostname. this is a testing setup, not permanent hosting. quick tunnels require no cloudflare account or purchased domain, and have no uptime guarantee.
+
+if you entered nix-shell before cloudflared was added, leave it and run `nix-shell` again. existing cloudflared config files can conflict with quick tunnels; the script will report that rather than modifying them.

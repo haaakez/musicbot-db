@@ -4,6 +4,7 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     python311
     jdk17
+    cloudflared
     libsodium
     pkg-config
     gcc
