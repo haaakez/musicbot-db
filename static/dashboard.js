@@ -100,7 +100,7 @@ for (const form of document.querySelectorAll('.rating-form')) {
     busy = true;
     select.disabled = true;
     undo.disabled = true;
-    feedback.textContent = text('Saving…');
+    feedback.textContent = '';
     feedback.classList.remove('error');
     // FormData omits disabled selects, so set the intended value explicitly.
     const data = new FormData(form);
@@ -116,7 +116,7 @@ for (const form of document.querySelectorAll('.rating-form')) {
       else scores[form.dataset.userId] = result.score;
       undoValue = isUndo ? null : valueOf(result.previous);
       undo.hidden = isUndo || undoValue === saved;
-      feedback.textContent = isUndo ? text('Undone') : text('Saved');
+      feedback.textContent = '';
       const count = result.progress[form.dataset.userId] || 0;
       for (const element of document.querySelectorAll('[data-progress-user]')) {
         if (element.dataset.progressUser === form.dataset.userId) element.textContent = `${count} / ${result.library_total}`;
@@ -126,7 +126,7 @@ for (const form of document.querySelectorAll('.rating-form')) {
       }
       updateRow(row);
       updatePreviews();
-      statusLine.textContent = text('Rating saved. Apply the view again to refresh filtering or sort order.');
+      statusLine.textContent = '';
       statusLine.classList.remove('error');
     } catch (error) {
       select.value = saved;

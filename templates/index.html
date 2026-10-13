@@ -236,6 +236,7 @@
                 {% set current_score = ratings_matrix.get(song.song_id, {}).get(rater.user_id) %}
                 <td class="rating-cell" data-rating-user="{{ rater.user_id }}">
                   {% if rating_owner == rater.user_id|string %}
+                  <div class="rating-editor">
                   <form class="rating-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('rate_song', song_id=song.song_id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
@@ -247,6 +248,7 @@
                     <noscript><button type="submit">{{ t('Save') }}</button></noscript>
                   </form>
                   <div class="rating-feedback"><span class="cell-status" role="status"></span><button type="button" class="undo-rating" hidden>{{ t('Undo') }}</button></div>
+                  </div>
                   {% else %}<span class="rating-value" data-score="{{ current_score if current_score is not none else 'unrated' }}" aria-label="{{ t('Rating by {name} for {title}', name=rater.display, title=song.title) }}">{{ current_score if current_score is not none else '—' }}</span>{% endif %}
                 </td>
               {% endfor %}

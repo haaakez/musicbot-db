@@ -164,7 +164,7 @@ meter::-moz-meter-bar { background: var(--accent); }
 .listener-options input[type=checkbox] { min-height: auto; padding: 0; width: 16px; height: 16px; accent-color: var(--accent); }
 .listening-controls p { margin: 6px 0 0; }
 .rating-feedback { display: flex; align-items: center; gap: 5px; font-size: 11px; min-height: 0; }
-.rating-feedback:has(.cell-status:not(:empty)) { margin-top: 3px; }
+
 .cell-status { color: var(--muted); }
 .cell-status.error { color: var(--danger); }
 .undo-rating { min-height: 22px; padding: 0 4px; font-size: 11px; background: var(--raised); color: var(--accent); border-color: transparent; }
@@ -214,9 +214,15 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .card .remember-login { display: flex; align-items: center; gap: 7px; }
 .card input[type=checkbox] { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--accent); }
 .rating-value { display: inline-block; min-width: 60px; padding: 3px 7px; line-height: 24px; }
-.rating-form select[data-score='3'], .rating-value[data-score='3'] { color: #82d3de; background: #233b3f; }
+.rating-form select[data-score='3'], .rating-value[data-score='3'] { color: #c8ace4; background: #362b42; }
 .rating-form select[data-score='2'], .rating-value[data-score='2'] { color: #a2cead; background: #293a2e; }
 .rating-form select[data-score='1'], .rating-value[data-score='1'] { color: #dfd08e; background: #3b3626; }
 .rating-form select[data-score='0'], .rating-value[data-score='0'] { color: #b9bdc4; background: #303236; }
 .rating-form select[data-score='-1'], .rating-value[data-score='-1'] { color: #e0a4a4; background: #3d2c2c; }
 .rating-value[data-score='unrated'] { color: var(--muted); background: var(--raised); }
+
+.rating-editor { display: flex; align-items: center; gap: 5px; }
+.rating-editor .rating-form { flex: 1; min-width: 60px; }
+.rating-editor .rating-feedback { flex: 0 0 auto; margin: 0; }
+.rating-editor .cell-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.rating-editor .undo-rating[hidden] { display: inline-flex !important; visibility: hidden; pointer-events: none; }

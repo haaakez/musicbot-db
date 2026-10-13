@@ -280,4 +280,4 @@ if you entered nix-shell before cloudflared was added, leave it and run `nix-she
 
 video links are cleaned automatically on playback and when added or edited: attached youtube playlists, channel labels, and tracking parameters are removed. standalone playlist links still import/play playlists. start times are kept as `t=<seconds>`; formats such as `t=90`, `t=1m30s`, `start=90`, and `#t=90` work in manual playback and radio. a start outside the recording is rejected. arbitrary stream links retain parameters that may be needed for playback.
 
-ratings use muted cyan (3), green (2), yellow (1), gray (0), and red (-1). unrated entries remain separate. the server checks ownership when saving ratings and minimums, including manually crafted requests.
+ratings use muted purple (3), green (2), yellow (1), gray (0), and red (-1). unrated entries remain separate. the server checks ownership when saving ratings and minimums, including manually crafted requests.
