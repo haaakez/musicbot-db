@@ -167,6 +167,7 @@
         <p class="hint">{{ t("Preview only. Uses the highest selected friend's minimum; changing this selection does not control the bot.") }}</p>
       </details>
     </form>
+    <p class="hint">{{ t('You can edit only your own ratings and minimum. Other ratings are read-only.') }}</p>
     <p class="hint rating-guide">{{ t('Ratings save automatically. — means unrated; -1 blocks playback. Select your name to highlight your column.') }}</p>
     {% if view == 'missing' and viewer is none %}<p class="hint">{{ t('Choose your name under “Me” and apply to see your unrated songs.') }}</p>{% endif %}
     {% if view == 'everyone' %}<p class="hint">{{ t('Everyone must have rated the song 2 or 3. Vetoes and missing ratings are excluded.') }}</p>{% endif %}
@@ -196,6 +197,7 @@
             {% for rater in known_raters %}
               <th scope="col" class="user-name" data-rating-user="{{ rater.user_id }}">
                 <div title="{{ t('Discord ID: {id}', id=rater.user_id) }}">{{ rater.display }}</div>
+                {% if rating_owner == rater.user_id|string %}
                 <form class="threshold-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('update_threshold', user_id=rater.user_id) }}" method="post">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
@@ -210,6 +212,7 @@
                   </label>
                   <noscript><button type="submit">{{ t('Set') }}</button></noscript>
                 </form>
+                {% else %}<div class="hint">{{ t('min:') }} {{ user_thresholds.get(rater.user_id, 0) }}</div>{% endif %}
               </th>
             {% endfor %}
             <th scope="col">{{ t('Listening preview') }}</th>
@@ -232,6 +235,7 @@
               {% for rater in known_raters %}
                 {% set current_score = ratings_matrix.get(song.song_id, {}).get(rater.user_id) %}
                 <td class="rating-cell" data-rating-user="{{ rater.user_id }}">
+                  {% if rating_owner == rater.user_id|string %}
                   <form class="rating-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('rate_song', song_id=song.song_id) }}" method="post">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
@@ -243,6 +247,7 @@
                     <noscript><button type="submit">{{ t('Save') }}</button></noscript>
                   </form>
                   <div class="rating-feedback"><span class="cell-status" role="status"></span><button type="button" class="undo-rating" hidden>{{ t('Undo') }}</button></div>
+                  {% else %}<span class="rating-value" data-score="{{ current_score if current_score is not none else 'unrated' }}" aria-label="{{ t('Rating by {name} for {title}', name=rater.display, title=song.title) }}">{{ current_score if current_score is not none else '—' }}</span>{% endif %}
                 </td>
               {% endfor %}
               <td class="preview-cell" data-preview>

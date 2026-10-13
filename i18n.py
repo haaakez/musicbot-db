@@ -441,6 +441,12 @@ RUSSIAN.update({
     'Wait for the current save or playback action to finish.': 'дождитесь сохранения или завершения действия воспроизведения.',
 })
 
+RUSSIAN.update({
+    'You can edit only your own ratings.': 'можно менять только свои оценки.',
+    'You can edit only your own ratings and minimum. Other ratings are read-only.': 'можно менять только свои оценки и минимум. остальные оценки доступны для просмотра.',
+    'Invalid link timecode.': 'неверная временная отметка в ссылке.',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

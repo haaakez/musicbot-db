@@ -22,7 +22,8 @@ from backup_db import maintain_backups
 from runtime_status import maintain_status
 from command_help import COMMANDS
 
-from library_metadata import setup_metadata
+from library_metadata import setup_metadata, link_identity
+from track_links import clean_link
 
 from playback_store import setup_playback, record_start, record_end, maintain_controls
 
@@ -203,7 +204,10 @@ async def play_track(player, track):
     if not player.connected:
         return False
     track.extras = {**dict(track.extras), 'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
-    await player.play(track, filters=NormalizedFilters())
+    start = getattr(track.extras, 'start_ms', 0)
+    if start and (not track.is_seekable or track.length and start >= track.length):
+        raise ValueError('Link timecode is outside this recording or the track cannot seek.')
+    await player.play(track, start=start, filters=NormalizedFilters())
     return True
 
 
@@ -213,7 +217,7 @@ async def search_tracks(query, title=None):
         title = rows[0][1]
     tracks = await resolve_tracks(query, wavelink.Pool.get_node("primary"), title)
     if rows and tracks and not isinstance(tracks, wavelink.Playlist):
-        tracks[0].extras = {'song_id': rows[0][0]}
+        tracks[0].extras = {**dict(tracks[0].extras), 'song_id': rows[0][0]}
     return tracks
 
 
@@ -438,7 +442,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
                 failures[song_id] = time.monotonic() + 300
                 continue
             track = tracks[0]
-            track.extras = {'song_id': song_id}
+            track.extras = {**dict(track.extras), 'song_id': song_id}
             if not url:
                 await asyncio.to_thread(run_query, "UPDATE songs SET url = ?, title = ? WHERE song_id = ?",
                                         (track.uri, track.title, song_id))
@@ -699,6 +703,11 @@ async def play(ctx, *, search: str):
     except Exception as e:
         return await ctx.send(embed=discord.Embed(description=f"Error searching for track: {e}", color=EMBED_RED))
 
+    if is_url(resolved_query) and not isinstance(tracks, wavelink.Playlist):
+        stored = await asyncio.to_thread(run_query, 'SELECT song_id,url FROM songs WHERE url IS NOT NULL', (), True)
+        matched = next((sid for sid,url in stored or [] if link_identity(url) == link_identity(resolved_query)), None)
+        if matched is not None:
+            tracks[0].extras = {**dict(tracks[0].extras), 'song_id': matched}
     if not isinstance(tracks, wavelink.Playlist) and not is_url(resolved_query) and len(tracks) > 1:
         chooser = SearchChoice(ctx.author.id, tracks)
         message = await ctx.send('select a recording (60 seconds):', view=chooser)
@@ -1048,6 +1057,7 @@ async def library(ctx, page: int = 1):
 async def add(ctx, *, query: str):
     if query.startswith("http"):
         try:
+            query, _ = clean_link(query)
             existing = run_query("SELECT song_id FROM songs WHERE url = ?", (query,), fetch=True)
             if existing: return await ctx.send(embed=discord.Embed(description="This link is already in the database.", color=EMBED_RED))
             run_query("INSERT INTO songs (title, url, play_count) VALUES (?, ?, 0)", (None, query))

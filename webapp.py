@@ -21,6 +21,7 @@ from radio import eligible
 from command_help import COMMANDS
 from bulk_import import parse_import
 from discord_auth import DiscordAuth
+from track_links import clean_link
 
 from library_metadata import setup_metadata, link_identity, duplicate_matches
 
@@ -329,7 +330,8 @@ def template_helpers():
     return {'csrf_token': csrf_token, 'page_url': page_url, 'sort_url': sort_url,
             't': t, 'language': session.get('language', 'en'),
             'discord_login_enabled': discord_auth.enabled, 'login_days': login_days,
-            'login_name': session.get('discord_username')}
+            'login_name': session.get('discord_username'),
+            'rating_owner': session.get('discord_user_id')}
 
 
 @app.before_request
@@ -748,6 +750,8 @@ def refresh_usernames():
 @app.route('/update_threshold/<int:user_id>', methods=['POST'])
 @login_required
 def update_threshold(user_id):
+    if str(user_id) != session.get('discord_user_id'):
+        return rating_error('You can edit only your own ratings.', 403)
     try:
         min_rating = float(request.form.get('min_rating', '0.0'))
     except ValueError:
@@ -766,6 +770,8 @@ def rate_song(song_id):
     user_id, _ = parse_rater_value(request.form.get('rater', '').strip())
     if user_id is None or not query_db('SELECT user_id FROM users WHERE user_id=?', (user_id,), one=True):
         return rating_error('Choose a known Discord user.', 400)
+    if str(user_id) != session.get('discord_user_id'):
+        return rating_error('You can edit only your own ratings.', 403)
     value = request.form.get('score', '')
     try:
         score = None if value == 'unrated' else int(value)
@@ -819,6 +825,11 @@ def add_song():
         url = request.form.get('url', '').strip() or None
         if not url and title.startswith(('http://', 'https://')):
             url, title = title, ''
+        if url:
+            try:
+                url, _ = clean_link(url)
+            except ValueError:
+                abort(400, t('Invalid link timecode.'))
         if title or url:
             if not valid_song_url(url):
                 return render_template('song_form.html', song={'title':title, 'url':url, 'play_count':0}, action='Add', error=t('Use an http or https link.')), 400
@@ -842,6 +853,11 @@ def edit_song(song_id):
         url = request.form.get('url', '').strip() or None
         if not url and title.startswith(('http://', 'https://')):
             url, title = title, ''
+        if url:
+            try:
+                url, _ = clean_link(url)
+            except ValueError:
+                abort(400, t('Invalid link timecode.'))
         if not title and not url:
             abort(400, t('Enter a title or link.'))
         if not valid_song_url(url):

@@ -213,3 +213,10 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .import-url { overflow-wrap: anywhere; max-width: 400px; }
 .card .remember-login { display: flex; align-items: center; gap: 7px; }
 .card input[type=checkbox] { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--accent); }
+.rating-value { display: inline-block; min-width: 60px; padding: 3px 7px; line-height: 24px; }
+.rating-form select[data-score='3'], .rating-value[data-score='3'] { color: #82d3de; background: #233b3f; }
+.rating-form select[data-score='2'], .rating-value[data-score='2'] { color: #a2cead; background: #293a2e; }
+.rating-form select[data-score='1'], .rating-value[data-score='1'] { color: #dfd08e; background: #3b3626; }
+.rating-form select[data-score='0'], .rating-value[data-score='0'] { color: #b9bdc4; background: #303236; }
+.rating-form select[data-score='-1'], .rating-value[data-score='-1'] { color: #e0a4a4; background: #3d2c2c; }
+.rating-value[data-score='unrated'] { color: var(--muted); background: var(--raised); }

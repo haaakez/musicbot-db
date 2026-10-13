@@ -122,7 +122,7 @@ b!play amsearch:<query>
 - “needs review”: missing ratings, disagreements, or unresolved links.
 - cached usernames with manual refresh.
 
-**—** clears a rating. apply the view again to refresh filtering after edits. the preview does not change the bot's settings. anyone logged in can edit all ratings.
+**—** clears a rating. apply the view again to refresh filtering after edits. the preview does not change the bot's settings. discord users can edit only their own ratings and minimum. other ratings remain visible; password-only sessions cannot edit ratings.
 
 for remote access, use https and a production server:
 
@@ -254,7 +254,7 @@ export DASHBOARD_LOGIN_DAYS='30'
 
 **add more people:** edit `DISCORD_ALLOWED_USER_IDS` in `.env`, append another id separated by a comma, then run `source .env` and restart the dashboard. to copy a user id in discord, enable developer mode in settings, then right-click the person and choose “copy user id”. usernames are not used for access decisions.
 
-with discord login configured, password login is disabled and only allowlisted accounts can enter. removed accounts are rejected after the configuration is reloaded, even with a remembered login. the login requests only the `identify` scope and does not save oauth access or refresh tokens in the browser session. existing dashboard permissions remain shared among admitted users.
+with discord login configured, password login is disabled and only allowlisted accounts can enter. removed accounts are rejected after the configuration is reloaded, even with a remembered login. the login requests only the `identify` scope and does not save oauth access or refresh tokens in the browser session. ratings and personal minimums can be edited only by their Discord owner. other dashboard controls remain shared among admitted users.
 
 “remember me” keeps login for 30 days by default, including after dashboard restarts when the secret key remains the same. unchecking it uses a browser-session cookie with a 12-hour server expiry. logout clears the browser session. remembered login requires the browser to retain cookies.
 
@@ -275,3 +275,9 @@ the script loads `.env`, opens a [cloudflare quick tunnel](https://developers.cl
 keep the terminal open. ctrl+c stops the tunnel and its dashboard, while the bot and lavalink continue running. the URL changes every run, so register the new callback each time. a new hostname also means signing in again, even if login was remembered on the previous hostname. this is a testing setup, not permanent hosting. quick tunnels require no cloudflare account or purchased domain, and have no uptime guarantee.
 
 if you entered nix-shell before cloudflared was added, leave it and run `nix-shell` again. existing cloudflared config files can conflict with quick tunnels; the script will report that rather than modifying them.
+
+## links and rating colors
+
+video links are cleaned automatically on playback and when added or edited: attached youtube playlists, channel labels, and tracking parameters are removed. standalone playlist links still import/play playlists. start times are kept as `t=<seconds>`; formats such as `t=90`, `t=1m30s`, `start=90`, and `#t=90` work in manual playback and radio. a start outside the recording is rejected. arbitrary stream links retain parameters that may be needed for playback.
+
+ratings use muted cyan (3), green (2), yellow (1), gray (0), and red (-1). unrated entries remain separate. the server checks ownership when saving ratings and minimums, including manually crafted requests.

@@ -28,7 +28,8 @@ class TrackPresentation:
         embed = discord.Embed(color=0x2b2d31)
         source = getattr(track, 'source', '') or 'music'
         embed.set_author(name=f'{source} · started playing')
-        playing = f'**[{title}]({track.uri})**' if track.uri else f'**{title}**'
+        link = getattr(track.extras, 'requested_url', None) or track.uri
+        playing = f'**[{title}]({link})**' if link else f'**{title}**'
         embed.add_field(name='playing', value=playing, inline=False)
         if track.artwork:
             embed.set_thumbnail(url=track.artwork)

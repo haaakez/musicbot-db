@@ -4,6 +4,7 @@ import io
 import re
 from urllib.parse import urlsplit
 from library_metadata import link_identity
+from track_links import clean_link
 
 
 def parse_import(text, existing):
@@ -40,6 +41,11 @@ def parse_import(text, existing):
                 error = 'Use an http or https link.'
         except ValueError:
             error = 'Invalid link.'
+        if url and not error:
+            try:
+                url, _ = clean_link(url)
+            except ValueError:
+                error = 'Invalid link timecode.'
         duplicate = bool(url and link_identity(url) in known_links or title and normalize(title) in known_names)
         preview.append({'title': title or None, 'url': url or None, 'error': error, 'duplicate': duplicate})
         if url:

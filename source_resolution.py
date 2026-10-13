@@ -5,9 +5,25 @@ import re
 from urllib.parse import urlsplit
 
 import wavelink
+from track_links import clean_link
 
 log = logging.getLogger(__name__)
 SEARCH_PREFIX = re.compile(r'^(ytsearch|ytmsearch|scsearch|spsearch|amsearch|dzsearch):')
+
+
+async def load_source(query, node):
+    start = 0
+    requested_url = None
+    if query.startswith(('http://', 'https://')):
+        query, start = clean_link(query)
+        requested_url = query
+    tracks = await wavelink.Playable.search(query, source=None, node=node)
+    items = tracks.tracks if isinstance(tracks, wavelink.Playlist) else tracks
+    for track in items or []:
+        track.extras = {**dict(track.extras), 'start_ms': start * 1000}
+        if requested_url and not isinstance(tracks, wavelink.Playlist):
+            track.extras = {**dict(track.extras), 'requested_url': requested_url}
+    return tracks
 
 
 def normalized(title):
@@ -36,7 +52,7 @@ def best_match(tracks, title, reference=None):
 
 async def resolve_tracks(query, node, title=None):
     async def search(value):
-        return await wavelink.Playable.search(value, source=None, node=node)
+        return await load_source(value, node)
 
     if SEARCH_PREFIX.match(query):
         return await search(query)
@@ -60,12 +76,12 @@ async def resolve_tracks(query, node, title=None):
 async def manual_results(query, node):
     """Return choices for manual requests; radio continues using resolve_tracks."""
     if urlsplit(query).hostname or SEARCH_PREFIX.match(query):
-        return await wavelink.Playable.search(query, source=None, node=node)
+        return await load_source(query, node)
     try:
-        tracks = await wavelink.Playable.search(f'scsearch:{query}', source=None, node=node)
+        tracks = await load_source(f'scsearch:{query}', node)
         match = best_match(tracks, query)
         if match:
             return [match] + [track for track in tracks if track.encoded != match.encoded][:4]
     except Exception:
         log.warning('Manual SoundCloud search failed; trying YouTube.', exc_info=True)
-    return await wavelink.Playable.search(f'ytmsearch:{query}', source=None, node=node)
+    return await load_source(f'ytmsearch:{query}', node)
