@@ -225,16 +225,12 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .rating-editor .rating-feedback { flex: 0 0 auto; margin: 0; }
 .rating-editor .cell-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
-/* Keep the signed-in user's entire column continuous through stripes and hover states. */
-.table-wrap table th.my-rating,
-.table-wrap table tbody tr td.my-rating,
-.table-wrap table tbody tr:nth-child(even) td.my-rating,
+/* Preserve row stripes and foreground colors with a subtle blue tint. */
+.table-wrap table th.my-rating { background: #33414b; }
+.table-wrap table tbody tr td.my-rating { background: #29343d; }
+.table-wrap table tbody tr:nth-child(even) td.my-rating { background: #303c46; }
 .table-wrap table tbody tr:hover td.my-rating,
-.table-wrap table tbody tr:focus-within td.my-rating {
-  background: #24445b;
-  border-bottom-color: transparent;
-  color: var(--text);
-}
+.table-wrap table tbody tr:focus-within td.my-rating { background: #3a4853; }
 .user-name { text-align: center; }
 .threshold-form { justify-content: center; }
 .rating-cell { text-align: center; }
@@ -243,5 +239,5 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .rating-editor .rating-form { flex: 0 0 68px; min-width: 0; }
 .rating-form select { width: 68px; min-width: 0; height: 26px; min-height: 26px; padding: 0 4px; font-size: 16px; line-height: 20px; }
 .table-wrap .my-rating .rating-form select[data-score] { background: transparent; }
-.table-wrap .my-rating .threshold-form select { background: #1c394e; }
+.table-wrap .my-rating .threshold-form select { background: #303c46; }
 .rating-form option { background: var(--raised); color: var(--text); }
