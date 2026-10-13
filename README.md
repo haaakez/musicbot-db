@@ -64,7 +64,7 @@ b!resume                            # b!re
 b!seek <seconds>
 b!loop [track|queue|off]             # b!lp
 b!np
-b!minrating <0–3>                    # b!mr
+b!minrating <-1–3>                    # b!mr
 b!unrated on|off
 b!embedratings on|off
 b!voicestatus on|off
@@ -81,7 +81,7 @@ playlist links queue all returned tracks. text searches use the first result. `b
 
 ratings: **-1, 0, 1, 2, 3**. missing ratings are separate from 0.
 
-radio checks each listener’s rating against that person’s own minimum. for example, a rating of 1 with a minimum of 1 and a rating of 3 with a minimum of 3 both pass. averages are not used for eligibility. **-1 blocks a song while that person is listening.**
+radio checks each listener’s rating against that person’s own minimum. for example, a rating of 1 with a minimum of 1 and a rating of 3 with a minimum of 3 both pass. averages are not used for eligibility. **-1 blocks a song when that listener’s minimum is 0 or higher. a minimum of -1 allows their -1 ratings.**
 
 `b!unrated on` allows missing ratings; `off` requires everyone to rate the song. manual requests bypass these rules. radio favours less-played songs and cycles through the eligible library. when every matching song has played, it starts another cycle. a single eligible song repeats. unavailable tracks are skipped for five minutes; `b!radio` retries them immediately.
 
@@ -281,3 +281,5 @@ if you entered nix-shell before cloudflared was added, leave it and run `nix-she
 video links are cleaned automatically on playback and when added or edited: attached youtube playlists, channel labels, and tracking parameters are removed. standalone playlist links still import/play playlists. start times are kept as `t=<seconds>`; formats such as `t=90`, `t=1m30s`, `start=90`, and `#t=90` work in manual playback and radio. a start outside the recording is rejected. arbitrary stream links retain parameters that may be needed for playback.
 
 ratings use muted purple (3), green (2), yellow (1), gray (0), and red (-1). unrated entries remain separate. the server checks ownership when saving ratings and minimums, including manually crafted requests.
+
+minimum options are exactly `-1, 0, 1, 2, 3`. each listener’s own rating is compared with their own minimum. legacy fractional minima round upward to preserve which integer ratings qualify.

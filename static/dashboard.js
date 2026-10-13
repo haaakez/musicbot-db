@@ -46,7 +46,7 @@ function updatePreviews() {
       const score = scores[id];
       const name = users.get(id).name;
       const threshold = users.get(id).threshold;
-      if (score === -1) blockers.push(text('{name}: veto', {name}));
+      if (score === -1 && threshold > -1) blockers.push(text('{name}: veto', {name}));
       else if (score === undefined && !ignoreUnrated) blockers.push(text('{name}: unrated', {name}));
       else if (score !== undefined && score < threshold) blockers.push(text('{name}: {score} below {threshold}', {name, score, threshold}));
     }

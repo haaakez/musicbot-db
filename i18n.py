@@ -454,6 +454,12 @@ RUSSIAN.update({
     'Ratings save automatically. The listening preview explains which listeners block a song; it does not control playback.': 'оценки сохраняются автоматически. проверка треков показывает, кто блокирует трек; она не управляет воспроизведением.',
 })
 
+RUSSIAN.update({
+    'Minimum must be -1, 0, 1, 2 or 3.': 'минимум должен быть -1, 0, 1, 2 или 3.',
+    'Ratings save automatically. — means unrated; -1 is allowed only with a personal minimum of -1.': 'оценки сохраняются автоматически. — означает отсутствие оценки; -1 разрешён только при личном минимуме -1.',
+    'Ratings and personal minimums are -1, 0, 1, 2, 3. A minimum of -1 allows that person’s -1 ratings. — means unrated.': 'оценки и личные минимумы: -1, 0, 1, 2, 3. минимум -1 разрешает треки с оценкой -1 этого участника. — означает отсутствие оценки.',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

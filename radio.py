@@ -8,7 +8,7 @@ def eligible(ratings, listeners, threshold, ignore_unrated):
         if score is None:
             if not ignore_unrated:
                 return False
-        elif score == -1 or score < minimum:
+        elif score < minimum:
             return False
     return True
 

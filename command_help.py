@@ -19,7 +19,7 @@ COMMANDS = [
     ('b!replay', 'Replay the current song'),
     ('b!history', 'Show recent playback history'),
     ('b!np', 'Show the current song'),
-    ('b!minrating <0–3> · b!mr', 'Set your radio minimum'),
+    ('b!minrating <-1–3> · b!mr', 'Set your radio minimum'),
     ('b!unrated on|off', 'Allow or block missing ratings in radio'),
     ('b!embedratings on|off', 'Show or hide all ratings in track embeds'),
     ('b!voicestatus on|off', 'Show or hide the song in voice status'),

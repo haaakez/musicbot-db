@@ -209,7 +209,7 @@ def get_known_raters():
 
 def get_user_thresholds():
     rows = query_db('SELECT user_id, min_rating FROM user_thresholds')
-    return {row['user_id']: row['min_rating'] for row in rows}
+    return {row['user_id']: int(row['min_rating']) for row in rows}
 
 
 def get_username_for_user_id(user_id):
@@ -228,7 +228,7 @@ def listening_preview(scores, listeners, names, thresholds, ignore_unrated):
     for uid in listeners:
         threshold = thresholds.get(uid, 0)
         score = scores.get(uid)
-        if score == -1:
+        if score == -1 and threshold > -1:
             blockers.append(t('{name}: veto', name=names[uid]))
         elif score is None and not ignore_unrated:
             blockers.append(t('{name}: unrated', name=names[uid]))
@@ -753,11 +753,11 @@ def update_threshold(user_id):
     if str(user_id) != session.get('discord_user_id'):
         return rating_error('You can edit only your own ratings.', 403)
     try:
-        min_rating = float(request.form.get('min_rating', '0.0'))
+        min_rating = int(request.form.get('min_rating', '0'))
     except ValueError:
         return rating_error('Invalid threshold', 400)
-    if not math.isfinite(min_rating) or not 0 <= min_rating <= 3:
-        return rating_error('Threshold must be between 0 and 3', 400)
+    if min_rating not in (-1, 0, 1, 2, 3):
+        return rating_error('Minimum must be -1, 0, 1, 2 or 3.', 400)
     execute_db('INSERT OR REPLACE INTO user_thresholds (user_id, min_rating) VALUES (?, ?)', (user_id, min_rating))
     if wants_json():
         return jsonify(user_id=str(user_id), min_rating=min_rating)

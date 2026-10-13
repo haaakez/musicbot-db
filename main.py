@@ -332,8 +332,10 @@ class RatingView(TrackControls):
                   (user_id, self.song_id, interaction.user.name, score))
 
         label = f"rated {score}"
+        limits = await asyncio.to_thread(run_query, "SELECT min_rating FROM user_thresholds WHERE user_id=?", (user_id,), True)
+        minimum = limits[0][0] if limits else 0
 
-        if (score == -1 and interaction.guild.voice_client and interaction.user.voice
+        if (score == -1 and minimum > -1 and interaction.guild.voice_client and interaction.user.voice
                 and sync_playback.contains(interaction.guild.id, interaction.user.voice.channel.id)
                 and interaction.guild.voice_client.current
                 and getattr(interaction.guild.voice_client.current.extras, 'song_id', None) == self.song_id):
@@ -389,7 +391,7 @@ def load_radio_data(user_ids, guild_id):
     ratings = {}
     for song_id, user_id, score in rows:
         ratings.setdefault(song_id, {})[user_id] = score
-    return songs, ratings, dict(thresholds), bool(setting[0]) if setting else True
+    return songs, ratings, {uid: int(value) for uid, value in thresholds}, bool(setting[0]) if setting else True
 
 
 async def find_and_play_random_song(guild: discord.Guild, voice_channel, text_channel):
@@ -960,9 +962,9 @@ async def radio(ctx):
         await find_and_play_random_song(ctx.guild, ctx.author.voice.channel, ctx.channel)
 
 @bot.command(aliases=['mr'])
-async def minrating(ctx, score: float):
-    if not math.isfinite(score) or score < 0.0 or score > 3.0:
-        return await ctx.send(embed=discord.Embed(description="Score must be between 0.0 and 3.0.", color=EMBED_RED))
+async def minrating(ctx, score: int):
+    if score not in (-1, 0, 1, 2, 3):
+        return await ctx.send(embed=discord.Embed(description="minimum must be -1, 0, 1, 2 or 3.", color=EMBED_RED))
 
     await asyncio.to_thread(remember_user, DB_NAME, ctx.author.id, ctx.author.name)
     run_query("INSERT OR REPLACE INTO user_thresholds (user_id, min_rating) VALUES (?, ?)", (ctx.author.id, score))

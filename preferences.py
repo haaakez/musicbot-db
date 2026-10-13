@@ -6,6 +6,12 @@ DEFAULTS = {'ignore_unrated': True, 'embed_ratings': False, 'voice_status': Fals
 
 
 def setup_settings(conn):
+    # Preserve legacy cutoffs when moving to integer-only personal minima.
+    conn.execute('''UPDATE user_thresholds SET min_rating=CASE
+        WHEN min_rating IS NULL THEN 0 WHEN min_rating < -1 THEN -1 WHEN min_rating > 3 THEN 3
+        ELSE CAST(min_rating AS INTEGER) + (min_rating > CAST(min_rating AS INTEGER)) END
+        WHERE min_rating IS NULL OR min_rating < -1 OR min_rating > 3
+           OR min_rating != CAST(min_rating AS INTEGER)''')
     conn.execute('''CREATE TABLE IF NOT EXISTS guild_settings (
         guild_id INTEGER PRIMARY KEY, ignore_unrated INTEGER NOT NULL DEFAULT 1
     )''')
