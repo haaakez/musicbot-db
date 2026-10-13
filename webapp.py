@@ -56,7 +56,7 @@ if not DISCORD_BOT_TOKEN and Path('token.txt').is_file():
 
 
 def t(text, **values):
-    return translate(session.get('language', 'en'), text, **values)
+    return translate(session.get('language', 'ru'), text, **values)
 
 
 def login_required(func):
@@ -328,7 +328,7 @@ def template_helpers():
         args['page'] = 1
         return url_for('index', **args)
     return {'csrf_token': csrf_token, 'page_url': page_url, 'sort_url': sort_url,
-            't': t, 'language': session.get('language', 'en'),
+            't': t, 'language': session.get('language', 'ru'),
             'discord_login_enabled': discord_auth.enabled, 'login_days': login_days,
             'login_name': session.get('discord_username'),
             'rating_owner': session.get('discord_user_id')}
@@ -356,7 +356,7 @@ def back_to_library():
 
 @app.route('/language')
 def change_language():
-    language = request.args.get('lang', 'en')
+    language = request.args.get('lang', 'ru')
     if language not in ('en', 'ru'):
         abort(400)
     session['language'] = language
@@ -373,7 +373,7 @@ def change_language():
 
 
 def establish_login(method, remember, user=None):
-    language = session.get('language', 'en')
+    language = session.get('language', 'ru')
     session.clear()
     session['language'] = language
     session['logged_in'] = True
@@ -438,7 +438,7 @@ def discord_callback():
 
 @app.route('/logout')
 def logout():
-    language = session.get('language', 'en')
+    language = session.get('language', 'ru')
     session.clear()
     session['language'] = language
     return redirect(url_for('login'))
@@ -570,8 +570,8 @@ def index():
     dashboard_data = {
         'users': [{'id': str(r['user_id']), 'name': r['display'], 'threshold': user_thresholds.get(r['user_id'], 0)} for r in known_raters],
         'ratings': {str(song['song_id']): {str(uid): score for uid, score in ratings_matrix.get(song['song_id'], {}).items()} for song in songs},
-        'progress': progress, 'libraryTotal': library_total,
-        'messages': RUSSIAN if session.get('language') == 'ru' else ENGLISH,
+        'progress': progress, 'libraryTotal': library_total, 'ratingOwner': session.get('discord_user_id'),
+        'messages': RUSSIAN if session.get('language', 'ru') == 'ru' else ENGLISH,
     }
     return render_template('index.html', songs=songs, total=total, page=page, pages=pages,
         search_query=search_query, avg_filter=avg_filter, banned_filter=banned_filter, not_rated_by=not_rated_by,

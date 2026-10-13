@@ -246,7 +246,7 @@ for (const button of document.querySelectorAll('[data-view]')) {
   });
 }
 function highlightIdentity() {
-  const id = filters.elements.viewer.value;
+  const id = state.ratingOwner || '';
   for (const cell of document.querySelectorAll('[data-rating-user]')) {
     cell.classList.toggle('my-rating', cell.dataset.ratingUser === id);
   }

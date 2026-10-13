@@ -195,7 +195,7 @@
             <th scope="col">{{ t('Average') }}</th>
             <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == 'coverage' else 'none' }}"><a class="sort-link" href="{{ sort_url('coverage') }}">{{ t('Rated') }}{% if sort == 'coverage' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             {% for rater in known_raters %}
-              <th scope="col" class="user-name" data-rating-user="{{ rater.user_id }}">
+              <th scope="col" class="user-name{% if rating_owner == rater.user_id|string %} my-rating{% endif %}" data-rating-user="{{ rater.user_id }}">
                 <div title="{{ t('Discord ID: {id}', id=rater.user_id) }}">{{ rater.display }}</div>
                 {% if rating_owner == rater.user_id|string %}
                 <form class="threshold-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('update_threshold', user_id=rater.user_id) }}" method="post">
@@ -234,7 +234,7 @@
               <td data-coverage>{{ summary.get('rated_count', 0) }} / {{ known_raters|length }}</td>
               {% for rater in known_raters %}
                 {% set current_score = ratings_matrix.get(song.song_id, {}).get(rater.user_id) %}
-                <td class="rating-cell" data-rating-user="{{ rater.user_id }}">
+                <td class="rating-cell{% if rating_owner == rater.user_id|string %} my-rating{% endif %}" data-rating-user="{{ rater.user_id }}">
                   {% if rating_owner == rater.user_id|string %}
                   <div class="rating-editor">
                   <form class="rating-form" data-user-id="{{ rater.user_id }}" action="{{ url_for('rate_song', song_id=song.song_id) }}" method="post">

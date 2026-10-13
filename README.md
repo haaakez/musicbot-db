@@ -283,3 +283,5 @@ video links are cleaned automatically on playback and when added or edited: atta
 ratings use muted purple (3), green (2), yellow (1), gray (0), and red (-1). unrated entries remain separate. the server checks ownership when saving ratings and minimums, including manually crafted requests.
 
 minimum options are exactly `-1, 0, 1, 2, 3`. each listener’s own rating is compared with their own minimum. legacy fractional minima round upward to preserve which integer ratings qualify.
+
+new dashboard sessions default to russian; the selected language is remembered.
