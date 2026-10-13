@@ -191,3 +191,5 @@ in the dashboard, a song can have only a link and no title. its title and artwor
 the dashboard shows discord, lavalink, and voice connection status, the current track, pause state, source, and listener count. status refreshes about every five seconds; a heartbeat older than 20 seconds is marked outdated.
 
 “similar links” finds entries pointing to the same recording, including youtube short/watch/embed links and common tracking variations. it does not compare audio across different uploads. “new songs” shows additions from the last seven days; date-added sorting is also available. timestamps are recorded for new entries; existing entries with unknown dates are excluded from the new-songs view.
+
+search accepts titles, exact ids such as `#123`, full links, and partial links. full youtube links also match alternate url formats for the same video. “duplicate finder” lists possible duplicates by normalized link or similar title and shows the matching ids. review recordings before deleting: similar titles can belong to different versions, and ratings are not merged automatically.

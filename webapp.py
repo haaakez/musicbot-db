@@ -19,7 +19,7 @@ from preferences import setup_settings, read_settings, write_settings, read_back
 from radio import eligible
 from command_help import COMMANDS
 
-from library_metadata import setup_metadata, link_identity
+from library_metadata import setup_metadata, link_identity, duplicate_matches
 
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
@@ -371,7 +371,7 @@ def index():
     banned_filter = request.args.get('banned_filter', 'all')
     not_rated_by = request.args.get('not_rated_by', 'all')
     view = request.args.get('view', 'all')
-    if view not in ('all', 'everyone', 'missing', 'review', 'similar', 'new'):
+    if view not in ('all', 'everyone', 'missing', 'review', 'similar', 'new', 'duplicates'):
         view = 'all'
     sort = request.args.get('sort', 'relevance' if search_query else 'title')
     if sort not in ('title', 'play_count', 'last_played', 'coverage', 'relevance', 'added_at'):
@@ -410,8 +410,11 @@ def index():
     relevance = {}
     filtered = []
     link_counts = Counter(link_identity(song['url']) for song in songs if song['url'])
+    duplicates = duplicate_matches(songs, include_names=view == 'duplicates') if view in ('duplicates', 'similar') else {}
     recent_since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
     for song in songs:
+        if view == 'duplicates' and song['song_id'] not in duplicates:
+            continue
         if view == 'similar' and (not song['url'] or link_counts[link_identity(song['url'])] < 2):
             continue
         if view == 'new' and (not song['added_at'] or song['added_at'] < recent_since):
@@ -421,14 +424,30 @@ def index():
         summary = rating_summary.get(sid, {'avg_score': None, 'count': 0, 'rated_count': 0})
         avg = summary['avg_score']
         if search_query:
-            query, title = normalize_search(search_query), normalize_search(song['title'] or '')
-            score = difflib.SequenceMatcher(None, query, title).ratio()
-            if query and query in title:
-                score = max(score, .7)
-            if query == title:
-                score = 1
-            if not query or score < .25:
-                continue
+            raw = search_query.casefold()
+            id_query = search_query.removeprefix('#')
+            url = (song['url'] or '').casefold()
+            if raw.startswith(('http://', 'https://')):
+                if not song['url'] or link_identity(search_query) != link_identity(song['url']):
+                    continue
+                score = 2
+            elif search_query.startswith('#') and id_query.isdecimal():
+                if int(id_query) != sid:
+                    continue
+                score = 2
+            else:
+                query, title = normalize_search(search_query), normalize_search(song['title'] or '')
+                score = difflib.SequenceMatcher(None, query, title).ratio()
+                if query and query in title:
+                    score = max(score, .7)
+                if query == title:
+                    score = 1
+                if raw in url:
+                    score = max(score, .95)
+                if id_query.isdecimal() and int(id_query) == sid:
+                    score = 2
+                if not query or score < .25:
+                    continue
             relevance[sid] = score
         if avg_rule and (avg is None or (avg_rule[0] == '>=' and avg < avg_rule[1]) or (avg_rule[0] == '=' and avg != avg_rule[1])):
             continue
@@ -480,7 +499,7 @@ def index():
         library_total=library_total, progress=progress, listeners=listeners, ignore_unrated=ignore_unrated,
         threshold=threshold, previews=previews, dashboard_data=dashboard_data,
         bot_guilds=bot_guilds, selected_guild=selected_guild, bot_settings=bot_settings,
-        backup_settings=read_backup_settings(DB_NAME))
+        backup_settings=read_backup_settings(DB_NAME), duplicates=duplicates)
 
 
 @app.route('/bot_settings', methods=['GET', 'POST'])

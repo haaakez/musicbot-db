@@ -80,15 +80,15 @@
     </details>
     <form id="filters" method="get" action="{{ url_for('index') }}">
       <nav class="view-shortcuts" hidden aria-label="{{ t('Library view') }}">
-        {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review'), ('similar', 'Similar links'), ('new', 'New songs')] %}
+        {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review'), ('duplicates', 'Duplicate finder'), ('similar', 'Similar links'), ('new', 'New songs')] %}
           <button type="button" data-view="{{ value }}" aria-pressed="{{ 'true' if view == value else 'false' }}">{{ t(label) }}</button>
         {% endfor %}
       </nav>
       <div class="toolbar search-toolbar">
-        <input type="text" name="q" aria-label="{{ t('Search songs') }}" placeholder="{{ t('Search songs…') }}" value="{{ search_query }}">
+        <input type="text" name="q" aria-label="{{ t('Search by title, ID or link') }}" placeholder="{{ t('Title, #ID or link…') }}" value="{{ search_query }}">
         <label id="view-select-label">{{ t('View') }}
           <select name="view" aria-label="{{ t('Library view') }}">
-            {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review'), ('similar', 'Similar links'), ('new', 'New songs')] %}
+            {% for value, label in [('all', 'All songs'), ('everyone', 'Everyone likes'), ('missing', 'Missing my rating'), ('review', 'Needs review'), ('duplicates', 'Duplicate finder'), ('similar', 'Similar links'), ('new', 'New songs')] %}
               <option value="{{ value }}" {% if view == value %}selected{% endif %}>{{ t(label) }}</option>
             {% endfor %}
           </select>
@@ -159,6 +159,7 @@
     {% if view == 'missing' and viewer is none %}<p class="hint">{{ t('Choose your name under “Me” and apply to see your unrated songs.') }}</p>{% endif %}
     {% if view == 'everyone' %}<p class="hint">{{ t('Everyone must have rated the song 2 or 3. Vetoes and missing ratings are excluded.') }}</p>{% endif %}
     {% if view == 'review' %}<p class="hint">{{ t('Missing ratings, ratings differing by 2 or more, or songs without a resolved link.') }}</p>{% endif %}
+    {% if view == 'duplicates' %}<p class="hint">{{ t('Possible duplicates by link or similar title. Review before deleting; different versions can have similar names.') }}</p>{% endif %}
     {% if view == 'similar' %}<p class="hint">{{ t('Links pointing to the same recording, including alternate YouTube URL formats and tracking parameters.') }}</p>{% endif %}
     {% if view == 'new' %}<p class="hint">{{ t('Added in the last 7 days. Older entries without a recorded addition date are excluded.') }}</p>{% endif %}
     <p class="library-summary">{{ t('{total} songs matching · Page {page} of {pages}', total=total, page=page, pages=pages) }}
@@ -208,7 +209,9 @@
             {% set summary = rating_summary.get(song.song_id, {}) %}
             <tr data-song-id="{{ song.song_id }}">
               <td class="song-id"><div class="song-id-content"><span>{{ song.song_id }}</span>{% if song.artwork_url %}<img class="track-cover" src="{{ song.artwork_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">{% endif %}</div></td>
-              <td class="song-title">{{ song.title or t('Title pending playback') }}</td>
+              <td class="song-title">{{ song.title or t('Title pending playback') }}
+                {% if duplicates.get(song.song_id) %}<div class="duplicate-matches">{% for match in duplicates[song.song_id] %}<a href="{{ url_for('index', q='#' ~ match.id) }}">#{{ match.id }}</a> <span>{% for reason in match.reasons %}{{ t(reason) }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% if not loop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+              </td>
               <td>{% if song.url %}<a href="{{ song.url }}" target="_blank" rel="noopener noreferrer">{{ t('Link') }}</a>{% else %}<span class="hint">{{ t('Unresolved') }}</span>{% endif %}</td>
               <td>{{ song.play_count or 0 }}</td>
               <td>{{ song.last_played or '—' }}</td>

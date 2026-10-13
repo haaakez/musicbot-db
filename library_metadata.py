@@ -32,3 +32,56 @@ def link_identity(url):
         return (host.removeprefix('m.'), parsed.path.rstrip('/'))
     # Preserve unknown parameters, which may identify a different recording.
     return (host, parsed.path.rstrip('/'), parsed.query)
+
+
+def duplicate_matches(songs, include_names=True):
+    """Return review candidates without merging records or their ratings."""
+    import difflib
+    import re
+    from collections import defaultdict
+    links, titles, tokens = defaultdict(list), defaultdict(list), defaultdict(set)
+    matches = defaultdict(dict)
+
+    def mark(left, right, reason):
+        if left != right:
+            matches[left].setdefault(right, set()).add(reason)
+            matches[right].setdefault(left, set()).add(reason)
+
+    def title_key(value):
+        value = re.sub(r'\b(official|audio|video|lyrics|hd|hq)\b', '', (value or '').casefold())
+        return ' '.join(re.findall(r'\w+', value))
+
+    normalized = {}
+    for song in songs:
+        sid = song['song_id']
+        if song['url']:
+            links[link_identity(song['url'])].append(sid)
+        name = title_key(song['title'])
+        if include_names and name and name != 'unknown title' and song['title'] != song['url']:
+            normalized[sid] = name
+            titles[name].append(sid)
+            for token in set(name.split()):
+                if len(token) >= 3:
+                    tokens[token].add(sid)
+    for groups, reason in ((links, 'Same link'), (titles, 'Similar name')):
+        for ids in groups.values():
+            for i, left in enumerate(ids):
+                for right in ids[i + 1:]:
+                    mark(left, right, reason)
+    # Compare shared-word candidates, avoiding a full library-wide fuzzy scan.
+    checked = set()
+    for ids in tokens.values():
+        ordered = sorted(ids)
+        for i, left in enumerate(ordered):
+            for right in ordered[i + 1:]:
+                pair = (left, right)
+                if pair in checked:
+                    continue
+                checked.add(pair)
+                a, b = normalized[left], normalized[right]
+                if min(len(a), len(b)) / max(len(a), len(b)) < .85:
+                    continue
+                if a != b and difflib.SequenceMatcher(None, a, b).ratio() >= .92:
+                    mark(left, right, 'Similar name')
+    return {sid: [{'id': peer, 'reasons': sorted(reasons)} for peer, reasons in sorted(peers.items())]
+            for sid, peers in matches.items()}

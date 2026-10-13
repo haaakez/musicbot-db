@@ -335,6 +335,15 @@ RUSSIAN.update({'About': 'о боте',
  'Sync playback across up to three voice channels': 'синхронизировать до трёх голосовых каналов',
  'Disconnect companion bots': 'отключить дополнительные боты'})
 
+RUSSIAN.update({
+    'Duplicate finder': 'поиск дублей',
+    'Search by title, ID or link': 'поиск по названию, id или ссылке',
+    'Title, #ID or link…': 'название, #id или ссылка…',
+    'Same link': 'та же ссылка',
+    'Similar name': 'похожее название',
+    'Possible duplicates by link or similar title. Review before deleting; different versions can have similar names.': 'возможные дубли по ссылке или похожему названию. проверьте перед удалением: разные версии могут называться похоже.',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',
