@@ -211,3 +211,5 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .import-preview table, .history-wrap table { min-width: 700px; }
 .import-preview td:nth-child(2), .import-preview th:nth-child(2), .history-wrap td:nth-child(2), .history-wrap th:nth-child(2) { position: static; max-width: none; }
 .import-url { overflow-wrap: anywhere; max-width: 400px; }
+.card .remember-login { display: flex; align-items: center; gap: 7px; }
+.card input[type=checkbox] { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--accent); }

@@ -3,6 +3,7 @@ import sqlite3
 import os
 import json
 import urllib.request
+import urllib.error
 import difflib
 import re
 import math
@@ -14,11 +15,12 @@ from collections import Counter
 from urllib.parse import urlsplit
 from i18n import RUSSIAN, ENGLISH, translate
 from pathlib import Path
-from identities import setup_users
+from identities import setup_users, remember_user
 from preferences import setup_settings, read_settings, write_settings, read_backup_settings
 from radio import eligible
 from command_help import COMMANDS
 from bulk_import import parse_import
+from discord_auth import DiscordAuth
 
 from library_metadata import setup_metadata, link_identity, duplicate_matches
 
@@ -28,6 +30,22 @@ DB_NAME = 'music_bot.db'
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 2_100_000
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
+
+discord_auth = DiscordAuth()
+login_days = int(os.environ.get('DASHBOARD_LOGIN_DAYS', '30'))
+if not 1 <= login_days <= 90:
+    raise RuntimeError('DASHBOARD_LOGIN_DAYS must be between 1 and 90.')
+if discord_auth.enabled:
+    secret = os.environ.get('FLASK_SECRET_KEY', '')
+    if len(secret) < 32 or secret.startswith('replace-with-'):
+        raise RuntimeError('Set a permanent random FLASK_SECRET_KEY of at least 32 characters for Discord login.')
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('FLASK_COOKIE_SECURE', str(discord_auth.redirect_uri.startswith('https://'))).lower() in ('true', '1', 'on'),
+    PERMANENT_SESSION_LIFETIME=timedelta(days=login_days),
+    SESSION_REFRESH_EACH_REQUEST=False,
+)
 
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'password')
@@ -42,7 +60,10 @@ def t(text, **values):
 
 def login_required(func):
     def wrapper(*args, **kwargs):
-        if not session.get('logged_in'):
+        authenticated = session.get('logged_in') and session.get('login_expires', 0) > time.time()
+        if discord_auth.enabled:
+            authenticated = authenticated and session.get('auth_method') == 'discord' and session.get('discord_user_id') in discord_auth.allowed_ids
+        if not authenticated:
             if wants_json():
                 return jsonify(error=t('Your session expired. Reload and sign in again.')), 401
             return redirect(url_for('login'))
@@ -306,7 +327,9 @@ def template_helpers():
         args['page'] = 1
         return url_for('index', **args)
     return {'csrf_token': csrf_token, 'page_url': page_url, 'sort_url': sort_url,
-            't': t, 'language': session.get('language', 'en')}
+            't': t, 'language': session.get('language', 'en'),
+            'discord_login_enabled': discord_auth.enabled, 'login_days': login_days,
+            'login_name': session.get('discord_username')}
 
 
 @app.before_request
@@ -341,23 +364,74 @@ def change_language():
     except ValueError:
         target = url_for('index')
         parsed = urlsplit(target)
-    allowed = parsed.path in ('/', '/login', '/add') or re.fullmatch(r'/edit/[0-9]+', parsed.path)
+    allowed = parsed.path in ('/', '/login', '/add', '/about', '/import') or re.fullmatch(r'/edit/[0-9]+', parsed.path)
     if parsed.scheme or parsed.netloc or not allowed or '\\' in target or any(ord(c) < 32 for c in target):
         target = url_for('index')
     return redirect(target)
+
+
+def establish_login(method, remember, user=None):
+    language = session.get('language', 'en')
+    session.clear()
+    session['language'] = language
+    session['logged_in'] = True
+    session['auth_method'] = method
+    session.permanent = remember
+    session['login_expires'] = time.time() + (login_days * 86400 if remember else 12 * 3600)
+    session['csrf_token'] = secrets.token_hex(32)
+    if user:
+        session['discord_user_id'] = str(user['id'])
+        session['discord_username'] = user['username']
+        session['viewer'] = str(user['id'])
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
     if request.method == 'POST':
+        if discord_auth.enabled:
+            abort(403)
         username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-            session['logged_in'] = True
+        password = request.form.get('password', '')
+        if hmac.compare_digest(username.encode(), ADMIN_USERNAME.encode()) and hmac.compare_digest(password.encode(), ADMIN_PASSWORD.encode()):
+            establish_login('password', request.form.get('remember') == 'on')
             return redirect(url_for('index'))
         error = t('Invalid username or password.')
     return render_template('login.html', error=error)
+
+
+@app.route('/auth/discord')
+def discord_login():
+    if not discord_auth.enabled:
+        abort(404)
+    state = secrets.token_urlsafe(32)
+    session['oauth_state'] = state
+    session['oauth_started'] = time.time()
+    session['oauth_remember'] = request.args.get('remember') == 'on'
+    return redirect(discord_auth.authorization_url(state))
+
+
+@app.route('/auth/discord/callback')
+def discord_callback():
+    if not discord_auth.enabled:
+        abort(404)
+    expected = session.pop('oauth_state', '')
+    started = session.pop('oauth_started', 0)
+    remember = session.pop('oauth_remember', False)
+    supplied = request.args.get('state', '')
+    if not expected or not hmac.compare_digest(expected.encode(), supplied.encode()) or time.time()-started > 600:
+        return render_template('login.html', error=t('Login expired. Please try again.')), 400
+    if request.args.get('error') or not request.args.get('code'):
+        return render_template('login.html', error=t('Discord login was cancelled.')), 400
+    try:
+        user = discord_auth.identify(request.args['code'])
+        if str(user['id']) not in discord_auth.allowed_ids:
+            return render_template('login.html', error=t('Your Discord account is not allowed to access this dashboard.')), 403
+        remember_user(DB_NAME, int(user['id']), user['username'])
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError):
+        return render_template('login.html', error=t('Discord login failed. Please try again.')), 502
+    establish_login('discord', remember, user)
+    return redirect(url_for('index'))
 
 
 @app.route('/logout')

@@ -13,6 +13,8 @@
       <h1>{{ t('Music library') }}</h1>
       <div class="toolbar">
         {% include "_language.html" %}
+        {% if login_name %}<span class="hint">{{ t('Signed in as {name}', name=login_name) }}</span>{% endif %}
+        <a class="button secondary" id="dashboard-refresh" href="{{ request.full_path.rstrip('?') }}">{{ t('Refresh') }}</a>
         <a class="button" href="{{ url_for('add_song') }}">{{ t('Add song') }}</a>
         <a class="button secondary" href="{{ url_for('import_songs') }}">{{ t('Bulk import') }}</a>
         <form id="refresh-names" action="{{ url_for('refresh_usernames') }}" method="post">

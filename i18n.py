@@ -428,6 +428,19 @@ RUSSIAN.update({
     'Show recent playback history': 'показать историю воспроизведения',
 })
 
+RUSSIAN.update({
+    'Sign in with Discord': 'войти через discord',
+    'Remember me for {days} days': 'запомнить вход на {days} дней',
+    'Only approved Discord accounts can access this dashboard.': 'доступ есть только у разрешённых аккаунтов discord.',
+    'Login expired. Please try again.': 'время входа истекло. повторите попытку.',
+    'Discord login was cancelled.': 'вход через discord отменён.',
+    'Your Discord account is not allowed to access this dashboard.': 'у вашего аккаунта discord нет доступа к dashboard.',
+    'Discord login failed. Please try again.': 'не удалось войти через discord. повторите попытку.',
+    'Signed in as {name}': 'вход: {name}',
+    'Refresh': 'обновить',
+    'Wait for the current save or playback action to finish.': 'дождитесь сохранения или завершения действия воспроизведения.',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

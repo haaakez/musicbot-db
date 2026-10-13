@@ -413,3 +413,16 @@ async function refreshHistory() {
   } finally { historyBusy = false; }
 }
 historyPanel.addEventListener('toggle', refreshHistory);
+
+
+// Reload library data while keeping applied filters and the selected server.
+document.getElementById('dashboard-refresh').addEventListener('click', event => {
+  if (document.querySelector('.rating-form select:disabled, .threshold-form select:disabled') || controlsBusy) {
+    event.preventDefault();
+    statusLine.textContent = text('Wait for the current save or playback action to finish.');
+    return;
+  }
+  const url = new URL(window.location.href);
+  if (botSettingsForm) url.searchParams.set('settings_guild', botSettingsForm.elements.guild_id.value);
+  event.currentTarget.href = url.toString();
+});

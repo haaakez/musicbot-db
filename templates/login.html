@@ -10,20 +10,27 @@
   <body class="auth">
     <div class="card">
       {% include "_language.html" %}
-      <h1>{{ t('Admin Login') }}</h1>
+      <h1>{{ t('Sign in') }}</h1>
       {% if error %}
       <p class="error">{{ error }}</p>
       {% endif %}
+      {% if discord_login_enabled %}
+      <form method="get" action="{{ url_for('discord_login') }}">
+        <label class="remember-login"><input type="checkbox" name="remember" checked> {{ t('Remember me for {days} days', days=login_days) }}</label>
+        <button type="submit">{{ t('Sign in with Discord') }}</button>
+      </form>
+      <p class="hint">{{ t('Only approved Discord accounts can access this dashboard.') }}</p>
+      {% else %}
       <form method="post">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="filters" value="{{ request.query_string.decode() }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="username">{{ t('Username') }}</label>
-        <input id="username" name="username" type="text" required autofocus>
+        <input id="username" name="username" type="text" required autofocus autocomplete="username">
         <label for="password">{{ t('Password') }}</label>
-        <input id="password" name="password" type="password" required>
+        <input id="password" name="password" type="password" required autocomplete="current-password">
+        <label class="remember-login"><input type="checkbox" name="remember" checked> {{ t('Remember me for {days} days', days=login_days) }}</label>
         <button type="submit">{{ t('Sign in') }}</button>
       </form>
-      <p class="hint">{{ t('Set ADMIN_USERNAME and ADMIN_PASSWORD in your environment or use the defaults.') }}</p>
+      {% endif %}
     </div>
   </body>
 </html>

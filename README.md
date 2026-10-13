@@ -221,3 +221,41 @@ python main.py
 ```
 
 this registers `/play`, `/radio`, `/queue`, `/np`, `/history`, `/replay`, `/pause`, `/resume`, and `/skip` globally. discord must authorize the bot's application commands, and global registration can take time to appear. prefix commands continue to work. `/play` uses the same result selection as `b!play`. the flag controls registration on startup; turning it off does not unregister commands already published to discord.
+
+## discord dashboard login
+
+`.env` is a plain text file containing shell exports. create it from `.env.example`, edit it, then load it in each terminal before starting a service:
+
+```bash
+cp .env.example .env
+# edit .env with your editor
+nix-shell
+source .env
+python webapp.py
+```
+
+for remembered logins, keep a permanent random `FLASK_SECRET_KEY` in `.env`. generate a value and paste it into that setting:
+
+```bash
+python -c 'import secrets; print(secrets.token_hex(32))'
+```
+
+1. open your application in the [discord developer portal](https://discord.com/developers/applications).
+2. under oauth2, copy its client id and client secret into `DISCORD_OAUTH_CLIENT_ID` and `DISCORD_OAUTH_CLIENT_SECRET`. the client secret is not the bot token.
+3. register the exact redirect URL and put the same URL in `DISCORD_OAUTH_REDIRECT_URI`. locally, use `http://127.0.0.1:5000/auth/discord/callback`; publicly, use `https://your-address/auth/discord/callback`.
+4. put your own discord user id and each allowed person's id in `DISCORD_ALLOWED_USER_IDS`.
+5. for public https hosting, set `FLASK_COOKIE_SECURE=true`. use false only for local http development.
+6. load `.env` and restart the dashboard.
+
+```bash
+export DISCORD_ALLOWED_USER_IDS='111111111111111111,222222222222222222'
+export DASHBOARD_LOGIN_DAYS='30'
+```
+
+**add more people:** edit `DISCORD_ALLOWED_USER_IDS` in `.env`, append another id separated by a comma, then run `source .env` and restart the dashboard. to copy a user id in discord, enable developer mode in settings, then right-click the person and choose “copy user id”. usernames are not used for access decisions.
+
+with discord login configured, password login is disabled and only allowlisted accounts can enter. removed accounts are rejected after the configuration is reloaded, even with a remembered login. the login requests only the `identify` scope and does not save oauth access or refresh tokens in the browser session. existing dashboard permissions remain shared among admitted users.
+
+“remember me” keeps login for 30 days by default, including after dashboard restarts when the secret key remains the same. unchecking it uses a browser-session cookie with a 12-hour server expiry. logout clears the browser session. remembered login requires the browser to retain cookies.
+
+“refresh” reloads dashboard data with the applied filters and selected server. it waits for active rating saves and playback actions before allowing a reload.
