@@ -8,17 +8,19 @@
 <p>{{ t('Review entries before importing. Duplicates are unchecked. Existing recording links are always skipped.') }}</p>
 <form method="post">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="confirm" value="1">
-<div class="import-preview"><table><thead><tr><th>{{ t('Import') }}</th><th>{{ t('Title') }}</th><th>{{ t('URL') }}</th><th>{{ t('Status') }}</th></tr></thead><tbody>
-{% for item in preview %}<tr><td><input type="checkbox" name="entry" value="{{ loop.index0 }}" {% if item.error %}disabled{% elif not item.duplicate %}checked{% endif %} aria-label="{{ t('Import entry {number}', number=loop.index) }}"></td><td>{% if item.title %}{{ item.title }}{% else %}<span class="pending-title">{{ t('Title pending playback') }}</span>{% endif %}</td><td class="import-url">{{ item.url or '—' }}</td><td>{{ t(item.error) if item.error else t('Possible duplicate') if item.duplicate else t('Ready') }}</td></tr>{% endfor %}
+<div class="import-preview"><table><thead><tr><th>{{ t('Import') }}</th><th>{{ t('Title') }}</th><th>{{ t('URL') }}</th><th>{{ t('Ratings') }}</th><th>{{ t('Status') }}</th></tr></thead><tbody>
+{% for item in preview %}<tr><td><input type="checkbox" name="entry" value="{{ loop.index0 }}" {% if item.error %}disabled{% elif not item.duplicate %}checked{% endif %} aria-label="{{ t('Import entry {number}', number=loop.index) }}"></td><td>{% if item.title %}{{ item.title }}{% else %}<span class="pending-title">{{ t('Title pending playback') }}</span>{% endif %}</td><td class="import-url">{{ item.url or '—' }}</td><td>{% for user_id, score in item.get('ratings', {}).items() %}<div>{{ user_id }}: {{ score }}</div>{% endfor %}</td><td>{{ t(item.error) if item.error else t('Possible duplicate') if item.duplicate else t('Ready') }}</td></tr>{% endfor %}
 </tbody></table></div>
 <button type="submit">{{ t('Import selected') }}</button> <a href="{{ url_for('import_songs') }}">{{ t('Start again') }}</a>
 </form>
 {% else %}
 <p>{{ t('Paste one title or link per line, or upload a UTF-8 text/CSV file. CSV columns: title,url. Up to 5000 entries and 2 MB.') }}</p>
+<p>{{ t('JSON: link, optional title, and ratings keyed by Discord user ID. Existing songs and ratings are not overwritten.') }}</p>
+<pre>[{"url": "https://www.youtube.com/watch?v=VIDEO_ID", "ratings": {"123456789012345678": 3, "234567890123456789": 2}}]</pre>
 <form method="post" enctype="multipart/form-data" class="import-form">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="entries">{{ t('Titles or links') }}</label><textarea id="entries" name="entries" rows="12"></textarea>
-<label for="import-file">{{ t('Text or CSV file') }}</label><input id="import-file" type="file" name="file" accept=".txt,.csv,.tsv,text/plain,text/csv">
+<label for="import-file">{{ t('Text, CSV or JSON file') }}</label><input id="import-file" type="file" name="file" accept=".txt,.csv,.tsv,.json,text/plain,text/csv,application/json">
 <button type="submit">{{ t('Preview import') }}</button>
 </form>
 {% endif %}

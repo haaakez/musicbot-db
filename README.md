@@ -181,3 +181,21 @@ PY
 playback metadata is checkpointed every five seconds: track, position, queue, repeat mode, radio history, and linked channels. after a restart or connection loss, recent checkpoints (up to 24 hours old) resume when listeners are present. stop and leave discard recovery. automatic recovery retries up to five times; `b!recover` retries a saved checkpoint. expired or unavailable sources can still fail. live streams restart without seeking.
 
 plays count once after ten seconds of reported playback progress. paused time, failed starts, and seek jumps do not count. restored attempts keep their count identity. existing play counts are retained.
+
+### import with ratings
+
+upload a json file in bulk import, then review and confirm:
+
+```json
+[
+  {
+    "url": "https://www.youtube.com/watch?v=VIDEO_ID",
+    "title": "optional title",
+    "ratings": {"123456789012345678": 3, "234567890123456789": -1}
+  }
+]
+```
+
+ratings accept `-1`, `0`, `1`, `2`, `3`. discord ids must be quoted. omit title to fetch it during playback. existing recording links are skipped.
+
+normal logins can import only their own ratings. add your discord id to `DISCORD_ADMIN_USER_IDS` in `.env` to import everyone's ratings; restart the dashboard after changing it. this does not grant permission to edit other ratings in the dashboard.

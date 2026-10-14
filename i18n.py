@@ -553,6 +553,19 @@ ENGLISH.update({
 })
 
 
+RUSSIAN.update({
+    'Ratings': 'оценки',
+    'Each JSON entry must be an object.': 'каждая запись json должна быть объектом.',
+    'JSON entries require a link and an optional text title.': 'в каждой записи json нужна ссылка; название можно не указывать.',
+    'Ratings must map Discord user IDs to scores.': 'оценки должны быть указаны как пары id пользователя discord и оценки.',
+    'Use valid Discord user IDs for ratings.': 'укажите действительные id пользователей discord.',
+    'Ratings must be integers from -1 to 3.': 'оценки должны быть целыми числами от -1 до 3.',
+    'Text, CSV or JSON file': 'файл txt, csv или json',
+    'JSON: link, optional title, and ratings keyed by Discord user ID. Existing songs and ratings are not overwritten.': 'json: ссылка, необязательное название и оценки с id пользователей discord. существующие треки и оценки не перезаписываются.',
+    'Importing other users’ ratings requires an admin Discord ID.': 'для импорта чужих оценок ваш id discord должен быть указан в списке администраторов.',
+})
+
+
 def translate(language, text, **values):
     messages = RUSSIAN if language == 'ru' else ENGLISH
     return messages.get(text, text.lower()).format(**values)

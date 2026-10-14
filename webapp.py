@@ -675,6 +675,15 @@ def history_route():
     return jsonify(history=[dict(row) for row in rows])
 
 
+def validate_import_ratings(ratings):
+    owner = session.get('discord_user_id')
+    admins = set(re.findall(r'\d+', os.environ.get('DISCORD_ADMIN_USER_IDS', '')))
+    if session.get('auth_method') == 'discord' and owner in admins:
+        return
+    if any(user_id != owner for user_id in ratings):
+        abort(403, t('Importing other users’ ratings requires an admin Discord ID.'))
+
+
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_songs():
@@ -706,7 +715,14 @@ def import_songs():
                     title,url = item['title'],item['url']
                     if url and link_identity(url) in links or not url and title and normalize_search(title) in names:
                         continue
-                    conn.execute('INSERT INTO songs(title,url) VALUES(?,?)', (title,url))
+                    ratings = item.get('ratings', {})
+                    validate_import_ratings(ratings)
+                    cursor = conn.execute('INSERT INTO songs(title,url) VALUES(?,?)', (title,url))
+                    for user_id, score in ratings.items():
+                        conn.execute('INSERT OR IGNORE INTO users(user_id) VALUES(?)', (int(user_id),))
+                        user = conn.execute('SELECT username FROM users WHERE user_id=?', (int(user_id),)).fetchone()
+                        conn.execute('INSERT INTO ratings(song_id,user_id,username,score) VALUES(?,?,?,?)',
+                                     (cursor.lastrowid, int(user_id), user['username'] or user_id, score))
                     imported += 1
                     if url: links.add(link_identity(url))
                     if title: names.add(normalize_search(title))
@@ -723,6 +739,8 @@ def import_songs():
             preview = parse_import(text, query_db('SELECT title,url FROM songs'))
         except (ValueError, TypeError) as error:
             abort(400, str(error))
+        for item in preview:
+            validate_import_ratings(item.get('ratings', {}))
         if not preview:
             abort(400, t('No entries found.'))
         token = secrets.token_urlsafe(24)
