@@ -423,30 +423,3 @@ document.getElementById('dashboard-refresh').addEventListener('click', event => 
 for (const checkbox of filters.querySelectorAll('[name=hide_mine], [name=hide_full]')) {
   checkbox.addEventListener('change', () => filters.requestSubmit());
 }
-
-let selectedRowIndex = -1;
-function selectRatingRow(index, scroll = false) {
-  if (!rows.length) return;
-  selectedRowIndex = Math.max(0, Math.min(rows.length - 1, index));
-  rows.forEach((row, i) => row.classList.toggle('rating-selected', i === selectedRowIndex));
-  const row = rows[selectedRowIndex];
-  if (scroll) row.scrollIntoView({block: 'nearest', inline: 'nearest'});
-  document.getElementById('rating-navigation').textContent = text('Selected song #{id}. Up/down selects; 0–3 rates your selected song.', {id: row.dataset.songId});
-}
-rows.forEach((row, index) => row.addEventListener('click', () => selectRatingRow(index)));
-selectRatingRow(0);
-document.addEventListener('keydown', event => {
-  if (event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input,select,textarea,button,[contenteditable]')) return;
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    event.preventDefault();
-    selectRatingRow(selectedRowIndex + (event.key === 'ArrowDown' ? 1 : -1), true);
-    return;
-  }
-  if (!/^[0-3]$/.test(event.key) || selectedRowIndex < 0 || event.repeat) return;
-  const select = rows[selectedRowIndex].querySelector('.rating-form select');
-  if (!select || select.disabled) return;
-  event.preventDefault();
-  if (select.value === event.key) return;
-  select.value = event.key;
-  select.dispatchEvent(new Event('change', {bubbles: true}));
-});

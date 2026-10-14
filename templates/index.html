@@ -181,7 +181,6 @@
       {% if page > 1 %}<a class="page-link" href="{{ page_url(page - 1) }}">{{ t('Previous') }}</a>{% endif %}
       {% if page < pages %}<a class="page-link" href="{{ page_url(page + 1) }}">{{ t('Next') }}</a>{% endif %}
     </p>
-    <p id="rating-navigation" class="hint" role="status">{{ t('Up/down selects a song; 0–3 sets your rating.') }}</p>
     <p id="save-status" class="hint" role="status" aria-live="polite"></p>
     <div class="table-wrap" tabindex="0" aria-label="{{ t('Songs and ratings') }}">
       <table>

@@ -244,5 +244,3 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .search-toolbar input[type=checkbox] { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--accent); }
 
 .pending-title { color: #dfd08e; }
-
-.table-wrap tbody tr.rating-selected .song-title { background: #343f47; box-shadow: inset 3px 0 var(--accent); }

@@ -96,7 +96,6 @@ for sync, invite additional bots, set `DISCORD_SYNC_TOKEN_2` and optionally `DIS
 - bulk import with preview: text, csv, or tsv; headers `title,url`; maximum 5000 entries / 2 mb.
 - link-only entries fetch titles and covers when playback starts.
 - russian by default; language choice is remembered.
-- up/down selects a song; 0–3 saves your rating when focus is outside input fields.
 
 changing a recording link clears stale metadata. video links lose attached playlists and tracking parameters but retain timecodes such as `t=1m30s`; these also work in radio. standalone playlist links remain supported.
 
