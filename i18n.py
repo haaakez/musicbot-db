@@ -515,6 +515,11 @@ RUSSIAN.update({
     'Ratings and personal minimums are -1, 0, 1, 2, 3. A minimum of -1 allows that person’s -1 ratings. — means unrated.': 'оценки и личные минимумы: -1, 0, 1, 2, 3. при минимуме -1 участник допускает треки, которым поставил -1. — означает, что оценки нет.',
 })
 
+RUSSIAN.update({
+    'Hide my rated songs': 'скрыть треки с моей оценкой',
+    'Hide fully rated songs': 'скрыть треки с оценками всех участников',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Music library': 'dashboard',

@@ -240,3 +240,5 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .rating-form select { width: 68px; min-width: 0; height: 26px; min-height: 26px; padding: 0 4px; font-size: 16px; line-height: 20px; }
 .table-wrap .my-rating .rating-form select[data-score='unrated'] { background: var(--raised); }
 .rating-form option { background: var(--raised); color: var(--text); }
+
+.search-toolbar input[type=checkbox] { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--accent); }

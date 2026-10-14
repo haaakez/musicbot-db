@@ -451,6 +451,9 @@ def index():
     avg_filter = request.args.get('avg_filter', 'all')
     banned_filter = request.args.get('banned_filter', 'all')
     not_rated_by = request.args.get('not_rated_by', 'all')
+    hide_mine = request.args.get('hide_mine') == 'on'
+    hide_full = request.args.get('hide_full') == 'on'
+    rating_owner = int(session['discord_user_id']) if session.get('discord_user_id') else None
     view = request.args.get('view', 'all')
     if view not in ('all', 'everyone', 'missing', 'review', 'similar', 'new', 'duplicates'):
         view = 'all'
@@ -502,6 +505,10 @@ def index():
             continue
         sid = song['song_id']
         scores = ratings_matrix.get(sid, {})
+        if hide_mine and rating_owner is not None and rating_owner in scores:
+            continue
+        if hide_full and names and all(uid in scores for uid in names):
+            continue
         summary = rating_summary.get(sid, {'avg_score': None, 'count': 0, 'rated_count': 0})
         avg = summary['avg_score']
         if search_query:
@@ -581,6 +588,7 @@ def index():
     return render_template('index.html', songs=songs, total=total, page=page, pages=pages,
         search_query=search_query, avg_filter=avg_filter, banned_filter=banned_filter, not_rated_by=not_rated_by,
         view=view, viewer=viewer, sort=sort, direction=direction, known_raters=known_raters,
+        hide_mine=hide_mine, hide_full=hide_full,
         user_thresholds=user_thresholds, rating_summary=rating_summary, ratings_matrix=ratings_matrix,
         library_total=library_total, progress=progress, listeners=listeners, ignore_unrated=ignore_unrated,
         threshold=threshold, previews=previews, dashboard_data=dashboard_data,

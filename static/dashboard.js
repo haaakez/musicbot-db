@@ -419,3 +419,7 @@ document.getElementById('dashboard-refresh').addEventListener('click', event => 
   if (botSettingsForm) url.searchParams.set('settings_guild', botSettingsForm.elements.guild_id.value);
   event.currentTarget.href = url.toString();
 });
+
+for (const checkbox of filters.querySelectorAll('[name=hide_mine], [name=hide_full]')) {
+  checkbox.addEventListener('change', () => filters.requestSubmit());
+}

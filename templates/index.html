@@ -113,6 +113,8 @@
             {% endfor %}
           </select>
         </label>
+        <label><input type="checkbox" name="hide_mine" {% if hide_mine %}checked{% endif %} {% if not rating_owner %}disabled{% endif %}> {{ t('Hide my rated songs') }}</label>
+        <label><input type="checkbox" name="hide_full" {% if hide_full %}checked{% endif %}> {{ t('Hide fully rated songs') }} ({{ known_raters|length }}/{{ known_raters|length }})</label>
         <button type="submit">{{ t('Apply') }}</button>
         <a href="{{ url_for('index') }}">{{ t('Reset') }}</a>
       </div>
