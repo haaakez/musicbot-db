@@ -242,3 +242,5 @@ textarea { font: inherit; color: var(--text); background: var(--raised); border:
 .rating-form option { background: var(--raised); color: var(--text); }
 
 .search-toolbar input[type=checkbox] { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--accent); }
+
+.pending-title { color: #dfd08e; }

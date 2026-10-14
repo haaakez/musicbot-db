@@ -9,7 +9,7 @@
 <form method="post">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="confirm" value="1">
 <div class="import-preview"><table><thead><tr><th>{{ t('Import') }}</th><th>{{ t('Title') }}</th><th>{{ t('URL') }}</th><th>{{ t('Status') }}</th></tr></thead><tbody>
-{% for item in preview %}<tr><td><input type="checkbox" name="entry" value="{{ loop.index0 }}" {% if item.error %}disabled{% elif not item.duplicate %}checked{% endif %} aria-label="{{ t('Import entry {number}', number=loop.index) }}"></td><td>{{ item.title or t('Title pending playback') }}</td><td class="import-url">{{ item.url or '—' }}</td><td>{{ t(item.error) if item.error else t('Possible duplicate') if item.duplicate else t('Ready') }}</td></tr>{% endfor %}
+{% for item in preview %}<tr><td><input type="checkbox" name="entry" value="{{ loop.index0 }}" {% if item.error %}disabled{% elif not item.duplicate %}checked{% endif %} aria-label="{{ t('Import entry {number}', number=loop.index) }}"></td><td>{% if item.title %}{{ item.title }}{% else %}<span class="pending-title">{{ t('Title pending playback') }}</span>{% endif %}</td><td class="import-url">{{ item.url or '—' }}</td><td>{{ t(item.error) if item.error else t('Possible duplicate') if item.duplicate else t('Ready') }}</td></tr>{% endfor %}
 </tbody></table></div>
 <button type="submit">{{ t('Import selected') }}</button> <a href="{{ url_for('import_songs') }}">{{ t('Start again') }}</a>
 </form>
