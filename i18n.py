@@ -522,6 +522,7 @@ RUSSIAN.update({
 
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
+    'Title pending playback': 'name will load',
     'Music library': 'dashboard',
     'Music Bot Database': 'dashboard',
     'No raters yet. Rate a song in Discord to add your name here.': 'no ratings yet. names appear after a first rating in discord.',
