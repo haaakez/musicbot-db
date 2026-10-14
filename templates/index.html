@@ -138,7 +138,7 @@
         </select>
         <label>{{ t('Sort') }}
           <select name="sort" aria-label="{{ t('Sort songs') }}">
-            {% for value, label in [('title', 'Title'), ('play_count', 'Plays'), ('last_played', 'Last played'), ('coverage', 'Rating coverage'), ('relevance', 'Search relevance'), ('added_at', 'Date added')] %}
+            {% for value, label in [('title', 'Title'), ('song_id', 'ID'), ('average', 'Average'), ('play_count', 'Plays'), ('last_played', 'Last played'), ('coverage', 'Rating coverage'), ('relevance', 'Search relevance'), ('added_at', 'Date added')] %}
               <option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ t(label) }}</option>
             {% endfor %}
           </select>
@@ -184,7 +184,7 @@
       <table>
         <thead>
           <tr>
-            <th scope="col">{{ t('ID') }}</th>
+            <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == 'song_id' else 'none' }}"><a class="sort-link" href="{{ sort_url('song_id') }}">{{ t('ID') }}{% if sort == 'song_id' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             {% for key, label in [('title', 'Title')] %}
               <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == key else 'none' }}"><a class="sort-link" href="{{ sort_url(key) }}">{{ t(label) }}{% if sort == key %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             {% endfor %}
@@ -192,7 +192,7 @@
             {% for key, label in [('play_count', 'Plays'), ('last_played', 'Last played')] %}
               <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == key else 'none' }}"><a class="sort-link" href="{{ sort_url(key) }}">{{ t(label) }}{% if sort == key %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             {% endfor %}
-            <th scope="col">{{ t('Average') }}</th>
+            <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == 'average' else 'none' }}"><a class="sort-link" href="{{ sort_url('average') }}">{{ t('Average') }}{% if sort == 'average' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th scope="col" aria-sort="{{ ('ascending' if direction == 'asc' else 'descending') if sort == 'coverage' else 'none' }}"><a class="sort-link" href="{{ sort_url('coverage') }}">{{ t('Rated') }}{% if sort == 'coverage' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             {% for rater in known_raters %}
               <th scope="col" class="user-name{% if rating_owner == rater.user_id|string %} my-rating{% endif %}" data-rating-user="{{ rater.user_id }}">

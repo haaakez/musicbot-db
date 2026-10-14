@@ -321,10 +321,10 @@ def template_helpers():
     def sort_url(column):
         args = request.args.to_dict(flat=False)
         current = request.args.get('sort', 'relevance' if request.args.get('q') else 'title')
-        default_direction = 'asc' if current == 'title' else 'desc'
+        default_direction = 'asc' if current in ('title', 'song_id') else 'desc'
         direction = request.args.get('direction', default_direction)
         args['sort'] = column
-        args['direction'] = ('desc' if direction == 'asc' else 'asc') if current == column else ('asc' if column == 'title' else 'desc')
+        args['direction'] = ('desc' if direction == 'asc' else 'asc') if current == column else ('asc' if column in ('title', 'song_id') else 'desc')
         args['page'] = 1
         return url_for('index', **args)
     return {'csrf_token': csrf_token, 'page_url': page_url, 'sort_url': sort_url,
@@ -455,9 +455,9 @@ def index():
     if view not in ('all', 'everyone', 'missing', 'review', 'similar', 'new', 'duplicates'):
         view = 'all'
     sort = request.args.get('sort', 'relevance' if search_query else 'title')
-    if sort not in ('title', 'play_count', 'last_played', 'coverage', 'relevance', 'added_at'):
+    if sort not in ('title', 'song_id', 'average', 'play_count', 'last_played', 'coverage', 'relevance', 'added_at'):
         sort = 'title'
-    direction = request.args.get('direction', 'desc' if sort in ('play_count', 'last_played', 'coverage', 'relevance', 'added_at') else 'asc')
+    direction = request.args.get('direction', 'desc' if sort in ('average', 'play_count', 'last_played', 'coverage', 'relevance', 'added_at') else 'asc')
     direction = 'desc' if direction == 'desc' else 'asc'
     known_raters = get_known_raters()
     bot_guilds = query_db('SELECT guild_id, guild_name FROM guild_settings ORDER BY guild_name COLLATE NOCASE, guild_id')
@@ -549,6 +549,9 @@ def index():
         sid = song['song_id']
         if sort == 'title':
             return (song['title'] or '').casefold()
+        if sort == 'average':
+            average = rating_summary.get(sid, {}).get('avg_score')
+            return average if average is not None else 0
         if sort == 'coverage':
             return rating_summary.get(sid, {}).get('rated_count', 0)
         if sort == 'relevance':
@@ -556,6 +559,8 @@ def index():
         return song[sort] if song[sort] is not None else (0 if sort == 'play_count' else '')
     filtered.sort(key=lambda song: ((song['title'] or '').casefold(), song['song_id']))
     filtered.sort(key=sort_key, reverse=direction == 'desc')
+    if sort == 'average':
+        filtered.sort(key=lambda song: rating_summary.get(song['song_id'], {}).get('avg_score') is None)
     if sort == 'last_played':
         filtered.sort(key=lambda song: song['last_played'] is None)  # Unknown dates always last.
     total = len(filtered)
