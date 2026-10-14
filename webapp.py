@@ -27,6 +27,8 @@ from library_metadata import setup_metadata, link_identity, duplicate_matches
 
 from playback_store import setup_playback
 
+from playback_recovery import setup_recovery
+
 DB_NAME = 'music_bot.db'
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 2_100_000
@@ -116,6 +118,7 @@ def ensure_db_schema():
     setup_users(conn)
     setup_metadata(conn)
     setup_playback(conn)
+    setup_recovery(conn)
     setup_settings(conn)
     conn.commit()
     conn.close()

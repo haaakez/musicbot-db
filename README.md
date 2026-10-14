@@ -59,6 +59,7 @@ b!leave                                   # b!l
 b!pause                                   # b!pa
 b!resume                                  # b!re
 b!replay
+b!recover
 b!seek <seconds>
 b!loop [track|queue|off]                   # b!lp
 b!np
@@ -95,6 +96,7 @@ for sync, invite additional bots, set `DISCORD_SYNC_TOKEN_2` and optionally `DIS
 - bulk import with preview: text, csv, or tsv; headers `title,url`; maximum 5000 entries / 2 mb.
 - link-only entries fetch titles and covers when playback starts.
 - russian by default; language choice is remembered.
+- up/down selects a song; 0–3 saves your rating when focus is outside input fields.
 
 changing a recording link clears stale metadata. video links lose attached playlists and tracking parameters but retain timecodes such as `t=1m30s`; these also work in radio. standalone playlist links remain supported.
 
@@ -174,3 +176,9 @@ with sqlite3.connect('file:backups/CHOSEN_SNAPSHOT.sqlite3?mode=ro', uri=True) a
         source.backup(destination)
 PY
 ```
+
+## recovery and play counts
+
+playback metadata is checkpointed every five seconds: track, position, queue, repeat mode, radio history, and linked channels. after a restart or connection loss, recent checkpoints (up to 24 hours old) resume when listeners are present. stop and leave discard recovery. automatic recovery retries up to five times; `b!recover` retries a saved checkpoint. expired or unavailable sources can still fail. live streams restart without seeking.
+
+plays count once after ten seconds of reported playback progress. paused time, failed starts, and seek jumps do not count. restored attempts keep their count identity. existing play counts are retained.

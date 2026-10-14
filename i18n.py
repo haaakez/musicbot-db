@@ -520,6 +520,15 @@ RUSSIAN.update({
     'Hide fully rated songs': 'скрыть треки с оценками всех участников',
 })
 
+RUSSIAN.update({
+    'Up/down selects a song; 0–3 sets your rating.': 'стрелки вверх и вниз выбирают трек; клавиши 0–3 задают вашу оценку.',
+    'Selected song #{id}. Up/down selects; 0–3 rates your selected song.': 'выбран трек #{id}. вверх/вниз — выбор трека; 0–3 — ваша оценка.',
+})
+
+RUSSIAN.update({
+    'Retry saved playback recovery': 'повторить восстановление сохранённого воспроизведения',
+})
+
 ENGLISH = {key: key.lower() for key in RUSSIAN}
 ENGLISH.update({
     'Title pending playback': 'title pending playback',

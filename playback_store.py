@@ -12,6 +12,10 @@ def setup_playback(conn):
         title TEXT NOT NULL, url TEXT, source TEXT, requester TEXT, encoded TEXT,
         started_at REAL NOT NULL, ended_at REAL, result TEXT NOT NULL DEFAULT 'playing')''')
     conn.execute('CREATE INDEX IF NOT EXISTS history_guild_date ON playback_history(guild_id, id DESC)')
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(playback_history)')}
+    if 'counted' not in columns:
+        conn.execute('ALTER TABLE playback_history ADD COLUMN counted INTEGER NOT NULL DEFAULT 0')
+        conn.execute('UPDATE playback_history SET counted=1')
     conn.execute('''CREATE TABLE IF NOT EXISTS playback_requests (
         id INTEGER PRIMARY KEY, guild_id INTEGER NOT NULL, action TEXT NOT NULL,
         expected TEXT NOT NULL, created_at REAL NOT NULL, result TEXT NOT NULL DEFAULT 'pending', error TEXT)''')
@@ -21,11 +25,32 @@ def setup_playback(conn):
 
 def record_start(database, guild_id, track, song_id):
     with closing(sqlite3.connect(database, timeout=30)) as conn, conn:
-        conn.execute('''INSERT INTO playback_history(guild_id,song_id,title,url,source,requester,encoded,started_at)
-            VALUES(?,?,?,?,?,?,?,?)''', (guild_id, song_id, track.title, track.uri, track.source,
+        resume_id = getattr(track.extras, 'recovery_history_id', None)
+        old = conn.execute('SELECT id FROM playback_history WHERE id=? AND guild_id=? AND encoded=?',
+                           (resume_id,guild_id,track.encoded)).fetchone() if resume_id else None
+        if old:
+            conn.execute("UPDATE playback_history SET result='playing',ended_at=NULL WHERE id=?", (old[0],))
+            return old[0]
+        cursor = conn.execute('''INSERT INTO playback_history(guild_id,song_id,title,url,source,requester,encoded,started_at,counted)
+            VALUES(?,?,?,?,?,?,?,?,0)''', (guild_id, song_id, track.title, track.uri, track.source,
             getattr(track.extras, 'requester_name', 'radio'), track.encoded, time.time()))
+        history_id = cursor.lastrowid
         conn.execute('''DELETE FROM playback_history WHERE guild_id=? AND id NOT IN
             (SELECT id FROM playback_history WHERE guild_id=? ORDER BY id DESC LIMIT 500)''', (guild_id, guild_id))
+        return history_id
+
+
+def count_play(database, history_id):
+    with closing(sqlite3.connect(database, timeout=30)) as conn, conn:
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute('SELECT song_id,counted FROM playback_history WHERE id=?', (history_id,)).fetchone()
+        if not row or row[1]:
+            return None
+        conn.execute('UPDATE playback_history SET counted=1 WHERE id=?', (history_id,))
+        if row[0] is not None:
+            conn.execute('UPDATE songs SET play_count=COALESCE(play_count,0)+1,last_played=CURRENT_TIMESTAMP WHERE song_id=?', (row[0],))
+            result = conn.execute('SELECT play_count FROM songs WHERE song_id=?', (row[0],)).fetchone()
+            return result[0] if result else None
 
 
 def record_end(database, guild_id, track, result):

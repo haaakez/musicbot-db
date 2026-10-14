@@ -12,6 +12,7 @@ import difflib
 import math
 import functools
 import time
+import uuid
 from radio import cycle_candidates, weight
 from identities import setup_users, remember_user
 from sync_playback import SyncPlayback
@@ -25,7 +26,9 @@ from command_help import COMMANDS
 from library_metadata import setup_metadata, link_identity
 from track_links import clean_link
 
-from playback_store import setup_playback, record_start, record_end, maintain_controls
+from playback_store import setup_playback, record_start, record_end, maintain_controls, count_play
+
+from playback_recovery import setup_recovery, PlaybackRecovery
 
 DB_NAME = "music_bot.db"
 
@@ -78,6 +81,7 @@ def setup_db():
     setup_users(conn)
     setup_metadata(conn)
     setup_playback(conn)
+    setup_recovery(conn)
     setup_settings(conn)
     c.close()
     conn.commit()
@@ -119,6 +123,7 @@ selection_locks = {}
 bound_channels = {}
 recent_playback_errors = {}
 recent_end_reasons = {}
+play_trackers = {}
 
 EMBED_BG = 0x2b2d31
 EMBED_RED = 0xED4245
@@ -203,12 +208,16 @@ def resolve_search_query(query):
 async def play_track(player, track):
     if not player.connected:
         return False
-    track.extras = {**dict(track.extras), 'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
-    start = getattr(track.extras, 'start_ms', 0)
+    track.extras = {**dict(track.extras), 'started_at': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'playback_id': uuid.uuid4().hex}
+    start = getattr(track.extras, 'recovery_position', getattr(track.extras, 'start_ms', 0))
     if start and (not track.is_seekable or track.length and start >= track.length):
         raise ValueError('Link timecode is outside this recording or the track cannot seek.')
     await player.play(track, start=start, filters=NormalizedFilters())
     return True
+
+
+recovery = PlaybackRecovery(bot, sync_playback, DB_NAME, radio_active, played_history,
+    bound_channels, play_trackers, play_track, selection_locks, radio_waiting)
 
 
 async def search_tracks(query, title=None):
@@ -252,6 +261,8 @@ async def control_playback(guild_id, action, expected):
     elif action == 'replay':
         if not player.current.is_seekable:
             raise ValueError('This track cannot be replayed.')
+        if guild_id in play_trackers:
+            play_trackers[guild_id]['last_time'] = None
         await player.seek(0)
         if player.paused:
             await player.pause(False)
@@ -413,6 +424,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
         return
     if not user_ids:
         radio_active[guild_id] = False
+        await recovery.forget(guild_id)
         if guild.voice_client:
             await presentation.clear(guild_id)
             await sync_playback.leave(guild_id)
@@ -444,7 +456,7 @@ async def select_radio_song(guild: discord.Guild, voice_channel, text_channel):
                 failures[song_id] = time.monotonic() + 300
                 continue
             track = tracks[0]
-            track.extras = {**dict(track.extras), 'song_id': song_id}
+            track.extras = {**dict(track.extras), 'song_id': song_id, 'radio_track': True}
             if not url:
                 await asyncio.to_thread(run_query, "UPDATE songs SET url = ?, title = ? WHERE song_id = ?",
                                         (track.uri, track.title, song_id))
@@ -504,6 +516,10 @@ async def on_wavelink_node_ready(payload: wavelink.NodeReadyEventPayload):
 
 @bot.event
 async def on_voice_state_update(member, before, after):
+    if bot.user and member.id == bot.user.id and before.channel and after.channel is None:
+        if member.guild.id not in recovery.disabled:
+            await recovery.disconnected()
+        return
     if member.bot: return
     if member.guild.voice_client:
         bot_channel = member.guild.voice_client.channel
@@ -520,6 +536,7 @@ async def on_voice_state_update(member, before, after):
                     embed = discord.Embed(description="No one has been listening for the past 3 minutes, leaving", color=EMBED_RED)
                     await channel.send(embed=embed)
                 radio_active[guild.id] = False
+                await recovery.forget(guild.id)
                 if guild.voice_client:
                     await presentation.clear(guild.id)
                     await sync_playback.leave(guild.id)
@@ -545,24 +562,32 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
     if not existing_id:
         existing_id = run_query("SELECT song_id, play_count FROM songs WHERE url = ?", (track.uri,), fetch=True)
     if existing_id:
-        current_play_count = (existing_id[0][1] or 0) + 1
+        current_play_count = existing_id[0][1] or 0
         song_id = existing_id[0][0]
         run_query("""UPDATE songs SET
                     title = CASE WHEN title IS NULL OR TRIM(title) = '' OR title = url OR LOWER(title) = 'unknown title' THEN ? ELSE title END,
-                    artwork_url = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?""",
-                  (track.title, track.artwork, current_play_count, song_id))
+                    artwork_url = ? WHERE song_id = ?""",
+                  (track.title, track.artwork, song_id))
     else:
         manual_match = run_query("SELECT song_id, play_count FROM songs WHERE LOWER(title) = ? AND url IS NULL LIMIT 1", (track.title.lower(),), fetch=True)
         if manual_match:
-            current_play_count = (manual_match[0][1] or 0) + 1
+            current_play_count = manual_match[0][1] or 0
             song_id = manual_match[0][0]
-            run_query("UPDATE songs SET url = ?, artwork_url = ?, play_count = ?, last_played = CURRENT_TIMESTAMP WHERE song_id = ?",
-                      (track.uri, track.artwork, current_play_count, song_id))
+            run_query("UPDATE songs SET url = ?, artwork_url = ? WHERE song_id = ?",
+                      (track.uri, track.artwork, song_id))
 
     if song_id is not None:
         track.extras = {**dict(track.extras), 'song_id': song_id}
 
-    await asyncio.to_thread(record_start, DB_NAME, guild_id, track, song_id)
+    history_id = await asyncio.to_thread(record_start, DB_NAME, guild_id, track, song_id)
+    play_trackers[guild_id] = {'key': getattr(track.extras, 'playback_id', None), 'history_id':history_id,
+        'heard_ms':getattr(track.extras, 'recovery_heard_ms', 0), 'last_position':getattr(track.extras,'recovery_position',getattr(track.extras,'start_ms',0)),
+        'last_time':int(time.time()*1000), 'done':False, 'counting':False}
+    extras = dict(track.extras)
+    extras.pop('recovery_history_id',None)
+    extras.pop('recovery_heard_ms',None)
+    extras.pop('recovery_position',None)
+    track.extras = extras
     await sync_playback.refresh(guild_id, restart=True)
     if channel:
         await cleanup_player_message(guild_id)
@@ -588,6 +613,51 @@ async def on_wavelink_track_start(payload: wavelink.TrackStartEventPayload):
         now_playing_msgs[guild_id] = msg
         presentation.remember(guild_id, msg, track, song_id, current_play_count, embed)
     await presentation.refresh(guild_id)
+
+@bot.event
+async def on_wavelink_player_update(payload: wavelink.PlayerUpdateEventPayload):
+    player = payload.player
+    guild = bot.get_guild(player.guild.id) if player else None
+    if not guild or player is not guild.voice_client or not player.current:
+        return
+    tracker = play_trackers.get(guild.id)
+    if not tracker or tracker['key'] != getattr(player.current.extras,'playback_id',None):
+        return
+    previous_time = tracker['last_time']
+    elapsed = payload.time-previous_time if previous_time is not None else 0
+    delta = payload.position-tracker['last_position']
+    if previous_time is not None and elapsed <= 0:
+        return
+    tracker['last_time'],tracker['last_position'] = payload.time,payload.position
+    if payload.connected:
+        tracker.pop('disconnected_at', None)
+    else:
+        since = tracker.setdefault('disconnected_at', time.monotonic())
+        if time.monotonic()-since >= 15 and guild.id not in recovery.pending:
+            await recovery.disconnected()
+    if payload.connected and not player.paused and 0 < elapsed <= 15000 and 0 < delta <= elapsed+1000:
+        tracker['heard_ms'] += delta
+    if tracker['heard_ms'] >= 10000 and not tracker['done'] and not tracker['counting']:
+        tracker['counting'] = True
+        try:
+            plays = await asyncio.to_thread(count_play, DB_NAME, tracker['history_id'])
+            tracker['done'] = True
+            entry = presentation.messages.get(guild.id)
+            if plays is not None and play_trackers.get(guild.id) is tracker and entry:
+                message,track,song_id,_ = entry
+                presentation.messages[guild.id] = (message,track,song_id,plays)
+                await presentation.refresh(guild.id)
+        except Exception as error:
+            print(f'could not count play: {error}')
+        finally:
+            tracker['counting'] = False
+
+
+@bot.event
+async def on_wavelink_node_disconnected(payload: wavelink.NodeDisconnectedEventPayload):
+    if payload.node.identifier == 'primary':
+        await recovery.disconnected()
+
 
 @bot.event
 async def on_wavelink_track_end(payload: wavelink.TrackEndEventPayload):
@@ -681,6 +751,7 @@ async def help(ctx):
 @bot.hybrid_command(aliases=['p'])
 async def play(ctx, *, search: str):
     """find and queue a recording or playlist."""
+    recovery.enable(ctx.guild.id)
     if ctx.interaction:
         await ctx.defer()
     if not ctx.author.voice:
@@ -726,7 +797,7 @@ async def play(ctx, *, search: str):
     items = tracks.tracks if isinstance(tracks, wavelink.Playlist) else [tracks[0]]
     for item in items:
         item.extras = {**dict(item.extras), 'requester_name': ctx.author.display_name,
-                       'requester_avatar': str(ctx.author.display_avatar.url)}
+                       'requester_avatar': str(ctx.author.display_avatar.url), 'radio_track': False}
     track = items[0]
     async with selection_locks.setdefault(ctx.guild.id, asyncio.Lock()):
         await vc.queue.put_wait(items)
@@ -747,6 +818,7 @@ async def skip(ctx):
 async def stop(ctx):
     vc: wavelink.Player = ctx.voice_client
     radio_active[ctx.guild.id] = False
+    await recovery.forget(ctx.guild.id)
 
     if ctx.guild.id in played_history: played_history[ctx.guild.id].clear()
     if ctx.guild.id in veto_pool: veto_pool[ctx.guild.id].clear()
@@ -776,6 +848,17 @@ async def now_playing(ctx):
     settings = await asyncio.to_thread(read_settings, DB_NAME, ctx.guild.id)
     embed = await asyncio.to_thread(presentation.build_embed, track, plays, song_id, settings['embed_ratings'])
     await ctx.send(embed=embed)
+
+@bot.command()
+async def recover(ctx):
+    """retry a saved playback checkpoint."""
+    await recovery.disconnected()
+    if ctx.guild.id not in recovery.pending:
+        return await ctx.send('no recent playback checkpoint is available.')
+    recovery.attempts.pop(ctx.guild.id,None)
+    recovery.retry_at[ctx.guild.id] = 0
+    await ctx.send('playback recovery will retry when listeners are in the saved voice channels.')
+
 
 @bot.hybrid_command()
 async def replay(ctx):
@@ -859,6 +942,8 @@ async def seek(ctx, seconds: int):
         return await ctx.send("No seekable song is playing.")
     if not 0 <= seconds * 1000 < vc.current.length:
         return await ctx.send("Choose a position within the song, in seconds.")
+    if ctx.guild.id in play_trackers:
+        play_trackers[ctx.guild.id]['last_time'] = None
     await vc.seek(seconds * 1000)
     await sync_playback.refresh(ctx.guild.id)
     await ctx.send(f"Jumped to {seconds} seconds.")
@@ -926,6 +1011,7 @@ async def resume(ctx):
 async def leave(ctx):
     vc: wavelink.Player = ctx.voice_client
     radio_active[ctx.guild.id] = False
+    await recovery.forget(ctx.guild.id)
     if ctx.guild.id in played_history: played_history[ctx.guild.id].clear()
     if ctx.guild.id in veto_pool: veto_pool[ctx.guild.id].clear()
 
@@ -939,6 +1025,7 @@ async def leave(ctx):
 @bot.hybrid_command(aliases=['r'])
 async def radio(ctx):
     """start radio using listener ratings."""
+    recovery.enable(ctx.guild.id)
     if not ctx.author.voice:
         return await ctx.send(embed=discord.Embed(description="Join a voice channel first.", color=EMBED_RED))
 
@@ -1143,7 +1230,7 @@ async def check_listener(ctx):
     if ctx.guild is None:
         return False
     controls = {'play', 'radio', 'skip', 'stop', 'leave', 'loop', 'pause', 'resume',
-                'remove', 'move', 'shuffle', 'clear', 'seek', 'replay', 'unrated', 'sync', 'unsync', 'embedratings', 'voicestatus'}
+                'remove', 'move', 'shuffle', 'clear', 'seek', 'replay', 'recover', 'unrated', 'sync', 'unsync', 'embedratings', 'voicestatus'}
     if ctx.command.name in controls:
         voice = ctx.author.voice
         if not voice or (ctx.voice_client and not sync_playback.contains(ctx.guild.id, voice.channel.id)):
@@ -1178,7 +1265,9 @@ bot.setup_hook = slash_setup
 async def main():
     await asyncio.to_thread(run_query, "UPDATE playback_history SET result='interrupted',ended_at=? WHERE result='playing'", (time.time(),))
     async with bot:
+        await recovery.load()
         await sync_playback.start()
+        recovery_task = asyncio.create_task(recovery.maintain())
         display_task = asyncio.create_task(presentation.maintain())
         backup_task = asyncio.create_task(maintain_backups(DB_NAME))
         control_task = asyncio.create_task(maintain_controls(DB_NAME, control_playback))
@@ -1187,11 +1276,17 @@ async def main():
         try:
             await bot.start(TOKEN)
         finally:
+            for guild in bot.guilds:
+                try:
+                    await recovery.checkpoint(guild)
+                except Exception as error:
+                    print(f'could not save shutdown checkpoint: {error}')
+            recovery_task.cancel()
             display_task.cancel()
             backup_task.cancel()
             status_task.cancel()
             control_task.cancel()
-            await asyncio.gather(display_task, backup_task, status_task, control_task, return_exceptions=True)
+            await asyncio.gather(display_task, backup_task, status_task, control_task, recovery_task, return_exceptions=True)
             for guild in bot.guilds:
                 await presentation.clear(guild.id)
             await sync_playback.close()

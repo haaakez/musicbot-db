@@ -16,6 +16,7 @@ COMMANDS = [
     ('b!resume · b!re', 'Resume playback'),
     ('b!seek <seconds>', 'Seek within the current song'),
     ('b!loop [track|queue|off] · b!lp', 'Set queue repeat mode'),
+    ('b!recover', 'Retry saved playback recovery'),
     ('b!replay', 'Replay the current song'),
     ('b!history', 'Show recent playback history'),
     ('b!np', 'Show the current song'),
